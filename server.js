@@ -2,21 +2,35 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const fs = require('fs');
 const db = require('./db');
 
 const app = express();
 // Puerto 80 para producción en Easypanel
 const PORT = process.env.PORT || 80;
 
-// --- DIAGNÓSTICO DE CONEXIÓN ---
-db.query('SELECT NOW()', (err, res) => {
-    if (err) {
-        console.error('❌ ERROR de conexión a la Base de Datos:', err.message);
-        console.error('URL Intentada:', process.env.DATABASE_URL.replace(/:[^:@]+@/, ':****@')); // Ocultar clave
-    } else {
-        console.log('✅ Conexión EXITOSA a PostgreSQL - Servidor listo');
+// --- DIAGNÓSTICO Y AUTO-INICIALIZACIÓN ---
+async function startApp() {
+    try {
+        console.log('🔍 Probando conexión a la base de datos...');
+        await db.query('SELECT NOW()');
+        console.log('✅ Conexión EXITOSA a PostgreSQL');
+
+        // Leer y ejecutar init.sql si es necesario
+        const sqlPath = path.join(__dirname, 'init.sql');
+        if (fs.existsSync(sqlPath)) {
+            console.log('🚀 Ejecutando script de inicialización (init.sql)...');
+            const sql = fs.readFileSync(sqlPath, 'utf8');
+            await db.query(sql);
+            console.log('✅ Tablas verificadas/creadas correctamente');
+        }
+    } catch (err) {
+        console.error('❌ ERROR crítico de base de datos:', err.message);
+        console.error('URL Intentada:', process.env.DATABASE_URL.replace(/:[^:@]+@/, ':****@'));
     }
-});
+}
+
+startApp();
 
 // --- CONFIGURACIÓN DE SEGURIDAD (Desbloqueo de CSP) ---
 // Este middleware soluciona el error "blocked:csp" que ves en tu pestaña Network
