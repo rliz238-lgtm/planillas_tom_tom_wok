@@ -1,8 +1,8 @@
 const { Pool } = require('pg');
 
 const pool = new Pool({
-  // CAMBIO CRÍTICO: Debe ser exactamente el nombre que sale en Easypanel
-  host: 'db-planillas', 
+  // Este es el Internal Host que muestra Easypanel en tus credenciales
+  host: 'planillas_tom_tom_wok_db-planillas', 
   user: 'postgres',
   password: process.env.POSTGRES_PASSWORD,
   database: 'planillas_tom_tom_wok',
