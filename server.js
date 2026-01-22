@@ -8,6 +8,16 @@ const app = express();
 // Puerto 80 para producción en Easypanel
 const PORT = process.env.PORT || 80;
 
+// --- DIAGNÓSTICO DE CONEXIÓN ---
+db.query('SELECT NOW()', (err, res) => {
+    if (err) {
+        console.error('❌ ERROR de conexión a la Base de Datos:', err.message);
+        console.error('URL Intentada:', process.env.DATABASE_URL.replace(/:[^:@]+@/, ':****@')); // Ocultar clave
+    } else {
+        console.log('✅ Conexión EXITOSA a PostgreSQL - Servidor listo');
+    }
+});
+
 // --- CONFIGURACIÓN DE SEGURIDAD (Desbloqueo de CSP) ---
 // Este middleware soluciona el error "blocked:csp" que ves en tu pestaña Network
 app.use((req, res, next) => {
@@ -45,6 +55,7 @@ app.post('/api/login', async (req, res) => {
             const user = result.rows[0];
             res.json({ id: user.id, username: user.username, name: user.name });
         } else {
+            console.log(`⚠️ Intento de login fallido para usuario: ${username}`);
             res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
         }
     } catch (err) {
