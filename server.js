@@ -61,6 +61,39 @@ app.get('/', (req, res) => {
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 
 // --- Autenticación ---
+// --- Usuarios ---
+app.get('/api/users', async (req, res) => {
+    try {
+        const result = await db.query('SELECT id, username, name, created_at FROM users ORDER BY username ASC');
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/users/change-password', async (req, res) => {
+    const { userId, newPassword } = req.body;
+    try {
+        await db.query('UPDATE users SET password = $1 WHERE id = $2', [newPassword, userId]);
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/users', async (req, res) => {
+    const { username, password, name } = req.body;
+    try {
+        const result = await db.query(
+            'INSERT INTO users (username, password, name) VALUES ($1, $2, $3) RETURNING id, username, name',
+            [username, password, name]
+        );
+        res.json(result.rows[0]);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 app.post('/api/login', async (req, res) => {
     const { username, password } = req.body;
     try {
