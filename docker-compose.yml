@@ -1,0 +1,10 @@
+version: '3.8'
+
+services:
+  planillas-app:
+    build: .
+    image: planillas-tom-tom:latest
+    container_name: planillas-container
+    ports:
+      - "80:80"
+    restart: always
