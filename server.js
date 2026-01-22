@@ -5,14 +5,23 @@ const db = require('./db');
 require('dotenv').config();
 
 const app = express();
-// Cambiado a puerto 80 para que coincida con tus logs de Easypanel
+// Puerto 80 para producción en Easypanel
 const PORT = process.env.PORT || 80;
+
+// --- CONFIGURACIÓN DE SEGURIDAD (Desbloqueo de CSP) ---
+// Este middleware soluciona el error "Content Security Policy" que bloquea tu login
+app.use((req, res, next) => {
+    res.setHeader(
+        "Content-Security-Policy", 
+        "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:;"
+    );
+    next();
+});
 
 app.use(cors());
 app.use(express.json());
 
-// --- SERVIR ARCHIVOS ESTÁTICOS (HTML, CSS, IMÁGENES) ---
-// Esto permite que el servidor encuentre el logo y los estilos de Tom Tom Wok
+// --- SERVIR ARCHIVOS ESTÁTICOS ---
 app.use(express.static(path.join(__dirname, '')));
 
 // --- RUTAS DE NAVEGACIÓN ---
@@ -20,7 +29,7 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// --- Middleware de Salud ---
+// --- API Health Check ---
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 
 // --- Autenticación ---
@@ -32,10 +41,11 @@ app.post('/api/login', async (req, res) => {
             const user = result.rows[0];
             res.json({ id: user.id, username: user.username, name: user.name });
         } else {
-            res.status(401).json({ error: 'Credenciales inválidas' });
+            res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
         }
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        console.error('Error en login:', err);
+        res.status(500).json({ error: 'Error interno del servidor' });
     }
 });
 
@@ -58,24 +68,4 @@ app.post('/api/employees', async (req, res) => {
         );
         res.json(result.rows[0]);
     } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// --- Logs (Registro de Horas) ---
-app.post('/api/logs', async (req, res) => {
-    const { employeeId, date, hours, timeIn, timeOut } = req.body;
-    try {
-        const result = await db.query(
-            'INSERT INTO logs (employee_id, date, hours, time_in, time_out) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-            [employeeId, date, hours, timeIn, timeOut]
-        );
-        res.json(result.rows[0]);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-app.listen(PORT, () => {
-    console.log(`Servidor backend de Tom Tom Wok corriendo en puerto ${PORT}`);
-});
+        res.status(500).json({ error
