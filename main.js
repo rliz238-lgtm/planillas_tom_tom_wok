@@ -2,14 +2,52 @@
  * Planillas Tom Tom Wok - Core Logic
  */
 
-// --- Data Persistence Layer ---
+// --- Data Persistence Layer (API version) ---
 const Storage = {
-    SCHEMA: {
-        employees: 'gn_employees',
-        logs: 'gn_logs',
-        payments: 'gn_payments',
-        settings: 'gn_settings',
-        users: 'gn_users'
+    data: {
+        employees: [],
+        logs: [],
+        payments: [],
+        settings: [],
+        users: []
+    },
+
+    async init() {
+        try {
+            const results = await Promise.all([
+                fetch('/api/employees').then(r => r.json()),
+                fetch('/api/logs').then(r => r.json()),
+                fetch('/api/payments').then(r => r.json()),
+                // settings and users are handled as needed
+            ]);
+
+            this.data.employees = results[0];
+            this.data.logs = results[1];
+            this.data.payments = results[2];
+
+            // Map keys for compatibility if backend names differ
+            this.data.employees.forEach(e => {
+                e.hourlyRate = parseFloat(e.hourly_rate);
+                e.startDate = e.start_date ? e.start_date.substring(0, 10) : '';
+                e.endDate = e.end_date ? e.end_date.substring(0, 10) : '';
+                e.applyCCSS = e.apply_ccss;
+            });
+
+            this.data.logs.forEach(l => {
+                l.employeeId = String(l.employee_id);
+                l.date = l.date.substring(0, 10);
+            });
+
+            this.data.payments.forEach(p => {
+                p.employeeId = String(p.employee_id);
+                p.date = p.date.substring(0, 10);
+                p.amount = parseFloat(p.amount);
+            });
+
+            console.log('Datos sincronizados con éxito');
+        } catch (err) {
+            console.error('Error al sincronizar datos:', err);
+        }
     },
 
     getLocalDate(d = new Date()) {
@@ -20,36 +58,67 @@ const Storage = {
     },
 
     get(key) {
-        const data = localStorage.getItem(this.SCHEMA[key]);
-        return data ? JSON.parse(data) : [];
+        return this.data[key] || [];
     },
 
-    save(key, data) {
-        localStorage.setItem(this.SCHEMA[key], JSON.stringify(data));
+    async save(key, data) {
+        // En esta arquitectura, save no se usa igual que en localStorage
+        // ya que cada operación add/update es individual.
+        this.data[key] = data;
     },
 
-    add(key, item) {
-        const data = this.get(key);
-        // Generar un ID más robusto para evitar colisiones en ciclos rápidos
-        item.id = item.id || Date.now().toString() + Math.random().toString(36).substring(2, 9);
-        data.push(item);
-        this.save(key, data);
-        return item;
-    },
+    async add(key, item) {
+        try {
+            const response = await fetch(`/api/${key}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(item)
+            });
+            const newItem = await response.json();
 
-    update(key, id, updates) {
-        const data = this.get(key);
-        const index = data.findIndex(i => i.id === id);
-        if (index !== -1) {
-            data[index] = { ...data[index], ...updates };
-            this.save(key, data);
+            // Normalizar datos recibidos
+            if (key === 'employees') {
+                newItem.hourlyRate = parseFloat(newItem.hourly_rate);
+                newItem.startDate = newItem.start_date ? newItem.start_date.substring(0, 10) : '';
+                newItem.applyCCSS = newItem.apply_ccss;
+            } else if (key === 'logs') {
+                newItem.employeeId = String(newItem.employee_id);
+                newItem.date = newItem.date.substring(0, 10);
+            }
+
+            this.data[key].push(newItem);
+            return newItem;
+        } catch (err) {
+            console.error(`Error adding to ${key}:`, err);
         }
     },
 
-    delete(key, id) {
-        const data = this.get(key);
-        const filtered = data.filter(i => i.id !== id);
-        this.save(key, filtered);
+    async update(key, id, updates) {
+        try {
+            const response = await fetch(`/api/${key}/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(updates)
+            });
+            const updated = await response.json();
+
+            const index = this.data[key].findIndex(i => i.id == id);
+            if (index !== -1) {
+                this.data[key][index] = { ...this.data[key][index], ...updates };
+            }
+            return updated;
+        } catch (err) {
+            console.error(`Error updating ${key}:`, err);
+        }
+    },
+
+    async delete(key, id) {
+        try {
+            await fetch(`/api/${key}/${id}`, { method: 'DELETE' });
+            this.data[key] = this.data[key].filter(i => i.id != id);
+        } catch (err) {
+            console.error(`Error deleting from ${key}:`, err);
+        }
     }
 };
 
@@ -57,31 +126,34 @@ const Storage = {
 const Auth = {
     SCHEMA: 'gn_session',
 
-    init() {
-        // Create default admin if no users exist
-        const users = Storage.get('users');
-        if (users.length === 0) {
-            Storage.add('users', {
-                username: 'admin',
-                password: 'password123',
-                name: 'Administrador Principal'
-            });
-        }
+    async init() {
+        // La creación del admin por defecto ahora se delega al servidor (init.sql)
+        // Solo verificamos si hay sesión activa localmente
     },
 
-    login(username, password) {
-        const users = Storage.get('users');
-        const user = users.find(u => u.username === username && u.password === password);
-        if (user) {
-            localStorage.setItem(this.SCHEMA, JSON.stringify({
-                id: user.id,
-                username: user.username,
-                name: user.name,
-                loginTime: Date.now()
-            }));
-            return true;
+    async login(username, password) {
+        try {
+            const response = await fetch('/api/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+
+            if (response.ok) {
+                const user = await response.json();
+                localStorage.setItem(this.SCHEMA, JSON.stringify({
+                    id: user.id,
+                    username: user.username,
+                    name: user.name,
+                    loginTime: Date.now()
+                }));
+                return true;
+            }
+            return false;
+        } catch (err) {
+            console.error('Error in login:', err);
+            return false;
         }
-        return false;
     },
 
     logout() {
@@ -103,14 +175,18 @@ const Auth = {
 const App = {
     currentView: 'dashboard',
 
-    init() {
-        Auth.init();
+    async init() {
+        await Auth.init();
         if (!Auth.isAuthenticated()) {
             this.renderLogin();
             return;
         }
+
+        // Cargar datos del servidor antes de renderizar
+        await Storage.init();
+
         this.setupNavigation();
-        this.seedInitialData();
+        // this.seedInitialData(); // Ya no es necesario, init.sql maneja datos iniciales
         this.renderView('dashboard');
 
         // Setup logout button if it exists
@@ -153,12 +229,12 @@ const App = {
         const form = document.getElementById('login-form');
         const error = document.getElementById('login-error');
 
-        form.onsubmit = (e) => {
+        form.onsubmit = async (e) => {
             e.preventDefault();
             const user = document.getElementById('username').value;
             const pass = document.getElementById('password').value;
 
-            if (Auth.login(user, pass)) {
+            if (await Auth.login(user, pass)) {
                 location.reload();
             } else {
                 error.style.display = 'block';
@@ -569,18 +645,21 @@ const Views = {
 
         const deactivateBtn = document.getElementById('deactivate-all-btn');
         if (deactivateBtn) {
-            deactivateBtn.onclick = () => {
+            deactivateBtn.onclick = async () => {
                 if (!confirm('¿Está seguro de que desea poner a TODOS los empleados como Inactivos?')) return;
 
                 const employees = Storage.get('employees');
                 const today = Storage.getLocalDate();
 
-                employees.forEach(emp => {
-                    emp.status = 'Inactive';
-                    if (!emp.endDate) emp.endDate = today;
-                });
+                for (const emp of employees) {
+                    if (emp.status === 'Active') {
+                        await Storage.update('employees', emp.id, {
+                            status: 'Inactive',
+                            endDate: today
+                        });
+                    }
+                }
 
-                Storage.save('employees', employees);
                 App.renderView('employees');
                 alert('Todos los empleados han sido marcados como Inactivos.');
             };
@@ -594,7 +673,7 @@ const Views = {
         };
 
         window.editEmployee = (id) => {
-            const emp = Storage.get('employees').find(e => e.id === id);
+            const emp = Storage.get('employees').find(e => String(e.id) === String(id));
             if (!emp) return;
 
             modalTitle.textContent = 'Editar Empleado';
@@ -613,7 +692,7 @@ const Views = {
             modal.showModal();
         };
 
-        form.onsubmit = (e) => {
+        form.onsubmit = async (e) => {
             e.preventDefault();
             const formData = new FormData(form);
             const id = formData.get('id');
@@ -631,9 +710,9 @@ const Views = {
             };
 
             if (id) {
-                Storage.update('employees', id, empData);
+                await Storage.update('employees', id, empData);
             } else {
-                Storage.add('employees', empData);
+                await Storage.add('employees', empData);
             }
 
             modal.close();
@@ -2000,7 +2079,7 @@ const Views = {
 
 // --- Global Actions ---
 window.deleteEmployee = (id) => {
-    const emp = Storage.get('employees').find(e => e.id === id);
+    const emp = Storage.get('employees').find(e => String(e.id) === String(id));
     if (!emp) return;
 
     // We'll inject a temporary modal for confirmation to avoid browser blocks
@@ -2019,8 +2098,8 @@ window.deleteEmployee = (id) => {
     const modal = document.getElementById('delete-confirm-modal');
     modal.showModal();
 
-    document.getElementById('confirm-delete-btn').onclick = () => {
-        Storage.delete('employees', id);
+    document.getElementById('confirm-delete-btn').onclick = async () => {
+        await Storage.delete('employees', id);
         modal.close();
         modal.remove();
         App.switchView('employees');
@@ -2032,7 +2111,7 @@ window.deleteEmployee = (id) => {
     };
 };
 
-window.processPayment = (empId, hours, amount) => {
+window.processPayment = async (empId, hours, amount) => {
     if (hours <= 0) {
         alert('No hay horas pendientes para pagar.');
         return;
@@ -2040,14 +2119,14 @@ window.processPayment = (empId, hours, amount) => {
 
     if (confirm(`¿Proceder con el pago de ₡${amount.toLocaleString()} por ${hours} horas?`)) {
         // Obtener desglose de horas para el comprobante
-        const logs = Storage.get('logs').filter(l => l.employeeId === empId);
-        const payments = Storage.get('payments').filter(p => p.employeeId === empId);
+        const logs = Storage.get('logs').filter(l => String(l.employeeId) === String(empId));
+        const payments = Storage.get('payments').filter(p => String(p.employeeId) === String(empId));
         const totalPaidHoursBefore = payments.reduce((s, p) => s + p.hours, 0);
 
         // Ordenar logs por fecha para identificar cuáles se están pagando
         logs.sort((a, b) => new Date(a.date) - new Date(b.date));
 
-        const emp = Storage.get('employees').find(e => e.id === empId);
+        const emp = Storage.get('employees').find(e => String(e.id) === String(empId));
         const rate = emp ? emp.hourlyRate : 0;
         const applyCCSS = emp ? !!emp.applyCCSS : false;
 
@@ -2080,7 +2159,7 @@ window.processPayment = (empId, hours, amount) => {
             }
         });
 
-        const np = Storage.add('payments', {
+        const np = await Storage.add('payments', {
             employeeId: empId,
             hours: hours,
             amount: amount, // Bruto

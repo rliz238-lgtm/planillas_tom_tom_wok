@@ -1,26 +1,9 @@
-/**
- * Employee Portal - Self-Service Hour Registration
- */
-
 const EmployeePortal = {
     currentEmployee: null,
+    currentLogs: [],
 
     init() {
         this.render();
-    },
-
-    getEmployees() {
-        const data = localStorage.getItem('gn_employees');
-        return data ? JSON.parse(data) : [];
-    },
-
-    getLogs() {
-        const data = localStorage.getItem('gn_logs');
-        return data ? JSON.parse(data) : [];
-    },
-
-    saveLogs(logs) {
-        localStorage.setItem('gn_logs', JSON.stringify(logs));
     },
 
     getLocalDate(d = new Date()) {
@@ -30,20 +13,40 @@ const EmployeePortal = {
         return `${y}-${m}-${day}`;
     },
 
-    authenticate(pin) {
-        const employees = this.getEmployees();
-        const emp = employees.find(e => e.pin === pin && e.status === 'Active');
+    async authenticate(pin) {
+        try {
+            const response = await fetch('/api/employee-auth', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ pin })
+            });
 
-        if (emp) {
-            this.currentEmployee = emp;
-            this.render();
-            return true;
+            if (response.ok) {
+                const emp = await response.json();
+
+                // Normalizar datos del empleado
+                emp.hourlyRate = parseFloat(emp.hourly_rate);
+
+                this.currentEmployee = emp;
+
+                // Cargar logs del empleado desde el servidor
+                const logsResponse = await fetch('/api/logs');
+                const allLogs = await logsResponse.json();
+                this.currentLogs = allLogs.filter(l => String(l.employee_id) === String(emp.id));
+
+                this.render();
+                return true;
+            }
+            return false;
+        } catch (err) {
+            console.error('Error during authentication:', err);
+            return false;
         }
-        return false;
     },
 
     logout() {
         this.currentEmployee = null;
+        this.currentLogs = [];
         this.render();
     },
 
@@ -89,7 +92,7 @@ const EmployeePortal = {
     },
 
     renderDashboard() {
-        const logs = this.getLogs().filter(l => l.employeeId === this.currentEmployee.id);
+        const logs = this.currentLogs;
 
         // Get current week range
         const now = new Date();
@@ -108,7 +111,7 @@ const EmployeePortal = {
 
         const weekLogs = logs.filter(l => l.date >= weekStart && l.date <= weekEnd);
         const weekHours = weekLogs.reduce((s, l) => s + parseFloat(l.hours || 0), 0);
-        const todayLogs = logs.filter(l => l.date === this.getLocalDate());
+        const todayLogs = logs.filter(l => l.date && l.date.startsWith(this.getLocalDate()));
         const todayHours = todayLogs.reduce((s, l) => s + parseFloat(l.hours || 0), 0);
 
         return `
@@ -182,7 +185,7 @@ const EmployeePortal = {
         const loginBtn = document.getElementById('login-btn');
         const errorMsg = document.getElementById('error-msg');
 
-        const attemptLogin = () => {
+        const attemptLogin = async () => {
             const pin = pinInput.value.trim();
             if (pin.length !== 4) {
                 errorMsg.style.display = 'block';
@@ -190,7 +193,7 @@ const EmployeePortal = {
                 return;
             }
 
-            if (this.authenticate(pin)) {
+            if (await this.authenticate(pin)) {
                 errorMsg.style.display = 'none';
             } else {
                 errorMsg.style.display = 'block';
@@ -284,43 +287,55 @@ const EmployeePortal = {
 
         addRowBtn.onclick = () => createRow();
 
-        saveBtn.onclick = () => {
+        saveBtn.onclick = async () => {
             const rows = tbody.querySelectorAll('tr');
             if (rows.length === 0) return;
 
-            const logs = this.getLogs();
             let savedCount = 0;
+            saveBtn.disabled = true;
+            saveBtn.textContent = 'Guardando...';
 
-            rows.forEach(tr => {
-                const date = tr.querySelector('.date-input').value;
-                const timeIn = tr.querySelector('.time-in').value;
-                const timeOut = tr.querySelector('.time-out').value;
+            try {
+                for (const tr of rows) {
+                    const date = tr.querySelector('.date-input').value;
+                    const timeIn = tr.querySelector('.time-in').value;
+                    const timeOut = tr.querySelector('.time-out').value;
 
-                if (!date || !timeIn || !timeOut) return;
+                    if (!date || !timeIn || !timeOut) continue;
 
-                const start = new Date(`2000-01-01T${timeIn}`);
-                const end = new Date(`2000-01-01T${timeOut}`);
-                let diff = (end - start) / 1000 / 60 / 60;
-                if (diff < 0) diff += 24;
+                    const start = new Date(`2000-01-01T${timeIn}`);
+                    const end = new Date(`2000-01-01T${timeOut}`);
+                    let diff = (end - start) / 1000 / 60 / 60;
+                    if (diff < 0) diff += 24;
 
-                const newLog = {
-                    id: Date.now().toString() + Math.random().toString(36).substring(2, 9),
-                    employeeId: this.currentEmployee.id,
-                    date: date,
-                    timeIn: timeIn,
-                    timeOut: timeOut,
-                    hours: diff.toFixed(2),
-                    isImported: false,
-                    isEmployeeSubmitted: true
-                };
+                    const response = await fetch('/api/logs', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            employeeId: this.currentEmployee.id,
+                            date: date,
+                            timeIn: timeIn,
+                            timeOut: timeOut,
+                            hours: diff.toFixed(2)
+                        })
+                    });
 
-                logs.push(newLog);
-                savedCount++;
-            });
+                    if (response.ok) savedCount++;
+                }
 
-            this.saveLogs(logs);
-            alert(`✅ Se guardaron ${savedCount} registros de horas correctamente.`);
-            this.render();
+                alert(`✅ Se guardaron ${savedCount} registros de horas correctamente.`);
+                // Recargar logs para actualizar el resumen
+                const logsResponse = await fetch('/api/logs');
+                const allLogs = await logsResponse.json();
+                this.currentLogs = allLogs.filter(l => String(l.employee_id) === String(this.currentEmployee.id));
+
+                this.render();
+            } catch (err) {
+                console.error('Error saving hours:', err);
+                alert('Ocurrió un error al guardar las horas.');
+                saveBtn.disabled = false;
+                saveBtn.textContent = '💾 Guardar Horas';
+            }
         };
 
         // Initialize with one row
