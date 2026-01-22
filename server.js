@@ -1,8 +1,8 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const db = require('./db');
-require('dotenv').config();
 
 const app = express();
 // Puerto 80 para producción en Easypanel
@@ -12,7 +12,7 @@ const PORT = process.env.PORT || 80;
 // Este middleware soluciona el error "blocked:csp" que ves en tu pestaña Network
 app.use((req, res, next) => {
     res.setHeader(
-        "Content-Security-Policy", 
+        "Content-Security-Policy",
         "default-src 'self'; " +
         "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; " +
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
