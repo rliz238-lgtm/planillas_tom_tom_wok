@@ -13,7 +13,6 @@ npm-debug.log*
 
 # Excel (temporary or data files)
 ~$*.xlsx
-datos de empleados para importar.xlsx
 
 # Misc
 .gemini/
