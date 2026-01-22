@@ -1,45 +1,50 @@
-renderLogin() {
-    // Reemplaza el contenido de renderLogin con esto:
-    document.body.innerHTML = `
-        <div class="login-screen" id="login-view">
-            <div class="login-card">
-                <img src="img/logo_tom_tom_wok_white.png" alt="Tom Tom Wok Logo" style="width: 200px; margin-bottom: 2rem;">
-                <h1>Tom Tom Wok</h1>
-                <p style="color: var(--text-muted); margin-bottom: 1rem;">Sistema de Control de Planillas</p>
-                
-                <div id="login-error" class="login-error" style="display:none">
-                    Usuario o contraseña incorrectos.
-                </div>
+/**
+ * Planillas Tom Tom Wok - Core Logic
+ */
 
-                <form class="login-form" id="login-form">
-                    <div class="login-input-group">
-                        <label>Usuario</label>
-                        <input type="text" id="username" placeholder="admin" required autofocus>
-                    </div>
-                    <div class="login-input-group">
-                        <label>Contraseña</label>
-                        <input type="password" id="password" placeholder="••••••••" required>
-                    </div>
-                    <button type="submit" class="login-btn">Entrar al Sistema</button>
-                </form>
-            </div>
-        </div>
-    `;
+// --- Data Persistence Layer (API version) ---
+const Storage = {
+    data: {
+        employees: [],
+        logs: [],
+        payments: [],
+        settings: [],
+        users: []
+    },
 
-    const form = document.getElementById('login-form');
-    const error = document.getElementById('login-error');
+    async init() {
+        try {
+            const results = await Promise.all([
+                fetch('/api/employees').then(r => r.json()),
+                fetch('/api/logs').then(r => r.json()),
+                fetch('/api/payments').then(r => r.json()),
+            ]);
 
-    form.onsubmit = async (e) => {
-        e.preventDefault();
-        const user = document.getElementById('username').value;
-        const pass = document.getElementById('password').value;
+            this.data.employees = results[0];
+            this.data.logs = results[1];
+            this.data.payments = results[2];
 
-        // Llama a la capa de autenticación que conecta con PostgreSQL
-        if (await Auth.login(user, pass)) {
-            location.reload(); // Recarga para entrar al Dashboard
-        } else {
-            error.style.display = 'block';
-            form.reset();
+            this.data.employees.forEach(e => {
+                e.hourlyRate = parseFloat(e.hourly_rate);
+                e.startDate = e.start_date ? e.start_date.substring(0, 10) : '';
+                e.endDate = e.end_date ? e.end_date.substring(0, 10) : '';
+                e.applyCCSS = e.apply_ccss;
+            });
+
+            this.data.logs.forEach(l => {
+                l.employeeId = String(l.employee_id);
+                l.date = l.date.substring(0, 10);
+            });
+
+            this.data.payments.forEach(p => {
+                p.employeeId = String(p.employee_id);
+                p.date = p.date.substring(0, 10);
+                p.amount = parseFloat(p.amount);
+            });
+
+            console.log('Datos sincronizados con éxito');
+        } catch (err) {
+            console.error('Error al sincronizar datos:', err);
         }
-    };
-}
+    }
+};
