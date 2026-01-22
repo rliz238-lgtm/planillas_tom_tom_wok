@@ -147,6 +147,67 @@ app.post('/api/logs', async (req, res) => {
     }
 });
 
+app.put('/api/employees/:id', async (req, res) => {
+    const { id } = req.params;
+    const { name, cedula, phone, pin, position, hourlyRate, status, startDate, endDate, applyCCSS } = req.body;
+    try {
+        const result = await db.query(
+            'UPDATE employees SET name=$1, cedula=$2, phone=$3, pin=$4, position=$5, hourly_rate=$6, status=$7, start_date=$8, end_date=$9, apply_ccss=$10 WHERE id=$11 RETURNING *',
+            [name, cedula, phone, pin, position, hourlyRate, status, startDate, endDate, applyCCSS, id]
+        );
+        res.json(result.rows[0]);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.delete('/api/employees/:id', async (req, res) => {
+    const { id } = req.params;
+    try {
+        await db.query('DELETE FROM employees WHERE id = $1', [id]);
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// --- Pagos ---
+app.get('/api/payments', async (req, res) => {
+    try {
+        const result = await db.query('SELECT * FROM payments ORDER BY date DESC');
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/payments', async (req, res) => {
+    const { employeeId, amount, date } = req.body;
+    try {
+        const result = await db.query(
+            'INSERT INTO payments (employee_id, amount, date) VALUES ($1, $2, $3) RETURNING *',
+            [employeeId, amount, date]
+        );
+        res.json(result.rows[0]);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/employee-auth', async (req, res) => {
+    const { pin } = req.body;
+    try {
+        const result = await db.query('SELECT * FROM employees WHERE pin = $1 AND status = \'Active\'', [pin]);
+        if (result.rows.length > 0) {
+            res.json(result.rows[0]);
+        } else {
+            res.status(401).json({ error: 'PIN incorrecto o empleado inactivo' });
+        }
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 app.listen(PORT, () => {
     console.log(`Servidor backend de Tom Tom Wok corriendo en puerto ${PORT}`);
 });
