@@ -56,3 +56,8 @@ CREATE TABLE IF NOT EXISTS settings (
 INSERT INTO users (username, password, name) 
 VALUES ('admin', 'password123', 'Administrador Principal')
 ON CONFLICT (username) DO NOTHING;
+
+-- Insertar usuario solicitado rli001 (password: rli001)
+INSERT INTO users (username, password, name) 
+VALUES ('rli001', 'rli001', 'Usuario RLI')
+ON CONFLICT (username) DO NOTHING;
