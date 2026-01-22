@@ -1,13 +1,24 @@
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 const db = require('./db');
 require('dotenv').config();
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+// Cambiado a puerto 80 para que coincida con tus logs de Easypanel
+const PORT = process.env.PORT || 80;
 
 app.use(cors());
 app.use(express.json());
+
+// --- SERVIR ARCHIVOS ESTÁTICOS (HTML, CSS, IMÁGENES) ---
+// Esto permite que el servidor encuentre el logo y los estilos de Tom Tom Wok
+app.use(express.static(path.join(__dirname, '')));
+
+// --- RUTAS DE NAVEGACIÓN ---
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
 
 // --- Middleware de Salud ---
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
@@ -51,39 +62,7 @@ app.post('/api/employees', async (req, res) => {
     }
 });
 
-app.put('/api/employees/:id', async (req, res) => {
-    const { id } = req.params;
-    const { name, cedula, phone, pin, position, hourlyRate, status, startDate, endDate, applyCCSS } = req.body;
-    try {
-        const result = await db.query(
-            'UPDATE employees SET name=$1, cedula=$2, phone=$3, pin=$4, position=$5, hourly_rate=$6, status=$7, start_date=$8, end_date=$9, apply_ccss=$10 WHERE id=$11 RETURNING *',
-            [name, cedula, phone, pin, position, hourlyRate, status, startDate, endDate, applyCCSS, id]
-        );
-        res.json(result.rows[0]);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-app.delete('/api/employees/:id', async (req, res) => {
-    try {
-        await db.query('DELETE FROM employees WHERE id = $1', [req.params.id]);
-        res.json({ success: true });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
 // --- Logs (Registro de Horas) ---
-app.get('/api/logs', async (req, res) => {
-    try {
-        const result = await db.query('SELECT * FROM logs ORDER BY date DESC');
-        res.json(result.rows);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
 app.post('/api/logs', async (req, res) => {
     const { employeeId, date, hours, timeIn, timeOut } = req.body;
     try {
@@ -97,31 +76,6 @@ app.post('/api/logs', async (req, res) => {
     }
 });
 
-// Endpoint para validar PIN de empleado (para el portal)
-app.post('/api/employee-auth', async (req, res) => {
-    const { pin } = req.body;
-    try {
-        const result = await db.query('SELECT * FROM employees WHERE pin = $1 AND status = \'Active\'', [pin]);
-        if (result.rows.length > 0) {
-            res.json(result.rows[0]);
-        } else {
-            res.status(401).json({ error: 'PIN incorrecto o empleado inactivo' });
-        }
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// --- Pagos ---
-app.get('/api/payments', async (req, res) => {
-    try {
-        const result = await db.query('SELECT * FROM payments ORDER BY date DESC');
-        res.json(result.rows);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
 app.listen(PORT, () => {
-    console.log(`Servidor backend corriendo en puerto ${PORT}`);
+    console.log(`Servidor backend de Tom Tom Wok corriendo en puerto ${PORT}`);
 });
