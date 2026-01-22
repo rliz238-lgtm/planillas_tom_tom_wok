@@ -1,13 +1,13 @@
 const { Pool } = require('pg');
-require('dotenv').config();
 
 const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    // Configuración para SSL si es necesario (común en despliegues reales)
-    // ssl: { rejectUnauthorized: false }
+  host: 'bd-planillas-tomtomwok', // Nombre del servicio en Easypanel
+  user: 'postgres',
+  password: process.env.POSTGRES_PASSWORD,
+  database: 'planillas_tom_tom_wok',
+  port: 5432,
 });
 
 module.exports = {
-    query: (text, params) => pool.query(text, params),
-    pool
+  query: (text, params) => pool.query(text, params),
 };

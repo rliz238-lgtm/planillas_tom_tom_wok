@@ -567,7 +567,7 @@ const Views = {
                 </div>
             </div>
 
-            <dialog id="employee-modal" class="card-container" style="margin: auto; border: 1px solid var(--primary); padding: 2rem; width: 450px; max-height: 90vh; overflow-y: auto; background: var(--bg-card); color: white;">
+            <dialog id="employee-modal" style="width: 450px; max-height: 90vh; overflow-y: auto;">
                 <h3 id="modal-title" style="margin-bottom: 1.5rem">Registrar Empleado</h3>
                 <form id="employee-form" style="display: flex; flex-direction: column; gap: 15px;">
                     <input type="hidden" name="id" id="edit-emp-id">
@@ -925,7 +925,7 @@ const Views = {
             </div>
 
             <!-- Edit Modal Specific to Detail View -->
-            <dialog id="detail-edit-modal" class="card-container" style="margin: auto; border: 1px solid var(--primary); padding: 2rem; width: 450px; max-height: 90vh; overflow-y: auto; background: var(--bg-card); color: white;">
+            <dialog id="detail-edit-modal" style="width: 450px; max-height: 90vh; overflow-y: auto;">
                 <h3 style="margin-bottom: 1.5rem">Editar Colaborador</h3>
                 <form id="detail-edit-form">
                     <div class="form-group">
@@ -2084,7 +2084,7 @@ window.deleteEmployee = (id) => {
 
     // We'll inject a temporary modal for confirmation to avoid browser blocks
     const modalHtml = `
-        <dialog id="delete-confirm-modal" class="card-container" style="margin: auto; border: 1px solid var(--danger); padding: 2rem; width: 400px; background: var(--bg-card); color: white;">
+        <dialog id="delete-confirm-modal" style="width: 400px;">
             <h3 style="margin-bottom: 1rem; color: var(--danger)">¿Eliminar Empleado?</h3>
             <p style="margin-bottom: 2rem; color: var(--text-muted)">Esta acción eliminará a <strong>${emp.name}</strong> y no se puede deshacer.</p>
             <div style="display: flex; gap: 10px;">
