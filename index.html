@@ -5,8 +5,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Planillas Tom Tom Wok</title>
-    <meta name="description"
-        content="Sistema profesional de gestión de planillas y control de horas para restaurantes.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -15,42 +13,43 @@
 </head>
 
 <body>
-    <div id="app">
+    <div id="login-view" class="login-screen">
+        <div class="login-card">
+            <h1>Tom Tom Wok</h1>
+            <p style="color: var(--text-muted); margin-bottom: 1rem;">Gestión de Planillas Profesionales</p>
+            
+            <div id="login-error" class="login-error">Usuario o contraseña incorrectos</div>
+            
+            <form id="login-form" class="login-form">
+                <div class="login-input-group">
+                    <label>Usuario</label>
+                    <input type="text" id="username" placeholder="Ingrese su usuario" required>
+                </div>
+                <div class="login-input-group">
+                    <label>Contraseña</label>
+                    <input type="password" id="password" placeholder="••••••••" required>
+                </div>
+                <button type="submit" class="login-btn">Ingresar al Sistema</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="app" style="display: none;">
         <aside class="sidebar">
             <div class="logo">
                 <img src="img/logo_tom_tom_wok_white.png" alt="Tom Tom Wok Logo">
             </div>
             <nav>
-                <button class="nav-item active" data-view="dashboard">
-                    <span class="nav-icon">📊</span> Dashboard
-                </button>
-                <button class="nav-item" data-view="employees">
-                    <span class="nav-icon">👥</span> Empleados
-                </button>
-                <button class="nav-item" data-view="calculator">
-                    <span class="nav-icon">🧮</span> Calculadora
-                </button>
-                <button class="nav-item" data-view="payroll">
-                    <span class="nav-icon">💰</span> Planillas
-                </button>
-                <button class="nav-item" data-view="benefits">
-                    <span class="nav-icon">⚖️</span> Prestaciones
-                </button>
-                <button class="nav-item" data-view="import">
-                    <span class="nav-icon">📥</span> Importar Excel
-                </button>
-                <button class="nav-item" data-view="profile">
-                    <span class="nav-icon">⚙️</span> Mi Perfil
-                </button>
+                <button class="nav-item active" data-view="dashboard">📊 Dashboard</button>
+                <button class="nav-item" data-view="employees">👥 Empleados</button>
+                <button class="nav-item" data-view="calculator">🧮 Calculadora</button>
+                <button class="nav-item" data-view="payroll">💰 Planillas</button>
+                <button class="nav-item" data-view="import">📥 Importar Excel</button>
             </nav>
             <div style="margin-top: auto; padding: 1rem;">
-                <button class="btn" id="logout-btn"
-                    style="width: 100%; justify-content: center; background: rgba(239, 68, 68, 0.1); color: var(--danger);">
+                <button class="btn" id="logout-btn" style="width: 100%; justify-content: center; background: rgba(239,68,68,0.1); color: var(--danger);">
                     🚪 Cerrar Sesión
                 </button>
-            </div>
-            <div class="sidebar-footer">
-                <p>© 2026 Tom Tom Wok</p>
             </div>
         </aside>
 
@@ -59,13 +58,10 @@
                 <h2 id="view-title">Dashboard</h2>
                 <div class="user-profile">
                     <span class="status-dot"></span>
-                    <span class="username">Administrador</span>
+                    <span class="username-display">Administrador</span>
                 </div>
             </header>
-
-            <div id="view-container">
-                <!-- Views will be injected here -->
-            </div>
+            <div id="view-container"></div>
         </main>
     </div>
 
@@ -73,5 +69,4 @@
     <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
     <script src="main.js?v=13.0"></script>
 </body>
-
 </html>
