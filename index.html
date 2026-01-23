@@ -43,6 +43,19 @@
         </div>
     </div>
 
+    <!-- Loader Global -->
+    <div id="loader-overlay"
+        style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.9); z-index: 10000; flex-direction: column; align-items: center; justify-content: center; backdrop-filter: blur(10px);">
+        <div class="loader-spinner"></div>
+        <div id="loader-text" style="color: white; margin-top: 1.5rem; font-weight: 500; font-size: 1.1rem;">Procesando
+            datos...</div>
+        <div
+            style="width: 300px; height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; margin-top: 1rem; overflow: hidden;">
+            <div id="loader-progress"
+                style="width: 0%; height: 100%; background: var(--primary); transition: width 0.3s ease;"></div>
+        </div>
+    </div>
+
     <!-- App Container -->
     <div id="app" style="display: none;">
         <aside class="sidebar">

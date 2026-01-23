@@ -20,6 +20,17 @@ const Storage = {
         return `${y}-${m}-${day}`;
     },
 
+    showLoader(show, text = 'Procesando...', progress = 0) {
+        const overlay = document.getElementById('loader-overlay');
+        const textEl = document.getElementById('loader-text');
+        const progressEl = document.getElementById('loader-progress');
+        if (overlay) {
+            overlay.style.display = show ? 'flex' : 'none';
+            if (textEl) textEl.innerText = text;
+            if (progressEl) progressEl.style.width = `${progress}%`;
+        }
+    },
+
     async get(key) {
         try {
             const response = await fetch(`/api/${this.SCHEMA[key]}`);
@@ -1342,11 +1353,40 @@ const Views = {
         };
 
         const excelDateToJSDate = (serial) => {
-            if (!serial || isNaN(serial)) return serial;
-            const utc_days = Math.floor(serial - 25569);
-            const utc_value = utc_days * 86400;
-            const date_info = new Date(utc_value * 1000);
-            return date_info.toISOString().split('T')[0];
+            if (!serial) return null;
+
+            // Si ya es un formato YYYY-MM-DD aproximado
+            if (typeof serial === 'string' && /^\d{4}-\d{2}-\d{2}/.test(serial)) {
+                return serial.split('T')[0];
+            }
+
+            // Si es un número (formato serial de Excel)
+            if (!isNaN(serial) && typeof serial !== 'string') {
+                const utc_days = Math.floor(serial - 25569);
+                const utc_value = utc_days * 86400;
+                const date_info = new Date(utc_value * 1000);
+                return date_info.toISOString().split('T')[0];
+            }
+
+            // Si es un string tipo DD/MM/YYYY o DD-MM-YYYY
+            if (typeof serial === 'string') {
+                const parts = serial.split(/[/-]/);
+                if (parts.length === 3) {
+                    // Detectar si es DD/MM/YYYY o YYYY/MM/DD
+                    if (parts[0].length === 4) return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+                    return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+                }
+            }
+
+            // Intento final con el constructor de Date
+            try {
+                const d = new Date(serial);
+                if (!isNaN(d.getTime())) {
+                    return d.toISOString().split('T')[0];
+                }
+            } catch (e) { }
+
+            return serial; // Devolver original si nada funciona
         };
 
         if (dropZone) {
@@ -1462,37 +1502,78 @@ const Views = {
             executeBtn.onclick = async () => {
                 if (!confirm(`Se importarán ${importedData.length} registros. ¿Continuar?`)) return;
 
-                const employees = await Storage.get('employees');
+                Storage.showLoader(true, 'Iniciando importación...', 0);
 
-                for (const item of importedData) {
-                    let empId = item.employee_id;
+                try {
+                    const employees = await Storage.get('employees');
+                    let successCount = 0;
+                    let errorCount = 0;
 
-                    // Auto-create employee if not found
-                    if (!empId) {
-                        const newEmp = await Storage.add('employees', {
-                            name: item.name,
-                            position: 'Importado',
-                            hourlyRate: item.rate || 3500,
-                            startDate: item.date,
-                            status: 'Active',
-                            applyCCSS: false,
-                            salaryHistory: []
-                        });
-                        empId = newEmp.id;
-                        employees.push(newEmp); // Add to local list to avoid duplicates in same run
+                    for (let i = 0; i < importedData.length; i++) {
+                        const item = importedData[i];
+                        const progress = Math.round(((i + 1) / importedData.length) * 100);
+                        Storage.showLoader(true, `Importando (${i + 1}/${importedData.length}): ${item.name}`, progress);
+
+                        try {
+                            let empId = item.employee_id;
+
+                            // Auto-create employee if not found
+                            if (!empId) {
+                                const newEmp = await Storage.add('employees', {
+                                    name: item.name,
+                                    position: 'Importado',
+                                    hourlyRate: item.rate || 3500,
+                                    startDate: item.date,
+                                    status: 'Active',
+                                    applyCCSS: false,
+                                    salaryHistory: []
+                                });
+
+                                if (newEmp && newEmp.id) {
+                                    empId = newEmp.id;
+                                    employees.push(newEmp);
+                                } else {
+                                    console.error("Error al auto-crear empleado:", item.name);
+                                    errorCount++;
+                                    continue;
+                                }
+                            }
+
+                            const logResult = await Storage.add('logs', {
+                                employeeId: parseInt(empId),
+                                date: item.date,
+                                hours: item.hours,
+                                notes: 'Importado de Excel',
+                                isImported: true
+                            });
+
+                            if (logResult) {
+                                successCount++;
+                            } else {
+                                errorCount++;
+                            }
+                        } catch (err) {
+                            console.error("Error procesando registro:", item.name, err);
+                            errorCount++;
+                        }
                     }
 
-                    await Storage.add('logs', {
-                        employeeId: parseInt(empId),
-                        date: item.date,
-                        hours: item.hours,
-                        notes: 'Importado de Excel',
-                        isImported: true
-                    });
-                }
+                    Storage.showLoader(false);
 
-                alert(`¡Éxito! Se han cargado ${importedData.length} registros como "Horas Pendientes". Ahora puede revisarlos y pagarlos en la sección de Planillas.`);
-                App.switchView('payroll');
+                    if (errorCount > 0) {
+                        alert(`Importación finalizada con avisos.\n✅ Éxito: ${successCount}\n❌ Error: ${errorCount}\n\nLos datos guardados ya están disponibles en Planillas y Dashboard.`);
+                    } else {
+                        alert(`¡Éxito total! Se han cargado ${successCount} registros como "Horas Pendientes".`);
+                    }
+
+                    // Asegurar que la vista se refresque completamente
+                    App.switchView('payroll');
+
+                } catch (globalErr) {
+                    Storage.showLoader(false);
+                    console.error("Error global en importación:", globalErr);
+                    alert("Ocurrió un error crítico durante la importación. Verifique la consola.");
+                }
             };
         }
     },
