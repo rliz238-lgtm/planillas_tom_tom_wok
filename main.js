@@ -213,6 +213,21 @@ const App = {
         if (logoutBtn) {
             logoutBtn.onclick = () => Auth.logout();
         }
+
+        this.setupMobileMenu();
+    },
+
+    setupMobileMenu() {
+        const toggle = document.getElementById('menu-toggle');
+        const close = document.getElementById('menu-close');
+        const sidebar = document.getElementById('sidebar');
+
+        if (toggle && sidebar) {
+            toggle.onclick = () => sidebar.classList.add('active');
+        }
+        if (close && sidebar) {
+            close.onclick = () => sidebar.classList.remove('active');
+        }
     },
 
     renderLogin() {
@@ -291,6 +306,12 @@ const App = {
             btn.addEventListener('click', () => {
                 const view = btn.dataset.view;
                 this.switchView(view);
+
+                // Cerrar menú en móvil tras navegar
+                const sidebar = document.getElementById('sidebar');
+                if (window.innerWidth <= 1024 && sidebar) {
+                    sidebar.classList.remove('active');
+                }
             });
         });
     },
