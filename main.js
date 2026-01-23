@@ -121,6 +121,7 @@ const Auth = {
                     id: user.id,
                     username: user.username,
                     name: user.name,
+                    role: 'admin',
                     loginTime: Date.now()
                 }));
                 return true;
@@ -128,6 +129,31 @@ const Auth = {
             return false;
         } catch (err) {
             console.error('Error en login:', err);
+            return false;
+        }
+    },
+
+    async employeeAuth(pin) {
+        try {
+            const response = await fetch('/api/employee-auth', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ pin })
+            });
+
+            if (response.ok) {
+                const emp = await response.json();
+                localStorage.setItem(this.SCHEMA, JSON.stringify({
+                    id: emp.id,
+                    name: emp.name,
+                    role: 'employee',
+                    loginTime: Date.now()
+                }));
+                return true;
+            }
+            return false;
+        } catch (err) {
+            console.error('Error en auth empleado:', err);
             return false;
         }
     },
@@ -157,16 +183,31 @@ const App = {
             return;
         }
 
+        const user = Auth.getUser();
         const appElem = document.getElementById('app');
         const loginView = document.getElementById('login-view');
         if (appElem) appElem.style.display = 'flex';
         if (loginView) loginView.style.display = 'none';
 
         const userNameDisplay = document.querySelector('.username');
-        if (userNameDisplay) userNameDisplay.textContent = Auth.getUser().name;
+        if (userNameDisplay) userNameDisplay.textContent = user.name + (user.role === 'employee' ? ' (Empleado)' : '');
 
-        this.setupNavigation();
-        await this.renderView('dashboard');
+        // --- Role-based UI Adjustments ---
+        if (user.role === 'employee') {
+            // Ocultar elementos de admin en el sidebar
+            document.querySelectorAll('.nav-item').forEach(btn => {
+                const view = btn.dataset.view;
+                if (['dashboard', 'employees', 'payroll', 'benefits', 'import', 'profile'].includes(view)) {
+                    btn.style.display = 'none';
+                }
+            });
+
+            this.setupNavigation();
+            await this.renderView('calculator'); // Los empleados solo ven la calculadora/portal
+        } else {
+            this.setupNavigation();
+            await this.renderView('dashboard');
+        }
 
         const logoutBtn = document.getElementById('logout-btn');
         if (logoutBtn) {
@@ -182,19 +223,64 @@ const App = {
 
         const form = document.getElementById('login-form');
         const error = document.getElementById('login-error');
+        const btnAdmin = document.getElementById('btn-mode-admin');
+        const btnEmp = document.getElementById('btn-mode-emp');
+        const adminFields = document.getElementById('admin-fields');
+        const empFields = document.getElementById('employee-fields');
+        const loginTitle = document.querySelector('#login-view p');
+
+        let loginMode = 'admin'; // 'admin' o 'employee'
+
+        if (btnAdmin && btnEmp) {
+            btnAdmin.onclick = () => {
+                loginMode = 'admin';
+                btnAdmin.style.background = 'var(--primary)';
+                btnAdmin.style.color = 'white';
+                btnEmp.style.background = 'transparent';
+                btnEmp.style.color = 'var(--text-muted)';
+                adminFields.style.display = 'block';
+                empFields.style.display = 'none';
+                if (loginTitle) loginTitle.innerText = 'Sistema de Control de Planillas';
+            };
+
+            btnEmp.onclick = () => {
+                loginMode = 'employee';
+                btnEmp.style.background = 'var(--primary)';
+                btnEmp.style.color = 'white';
+                btnAdmin.style.background = 'transparent';
+                btnAdmin.style.color = 'var(--text-muted)';
+                adminFields.style.display = 'none';
+                empFields.style.display = 'block';
+                if (loginTitle) loginTitle.innerText = 'Portal de Registro de Empleados';
+                document.getElementById('employee-pin').focus();
+            };
+        }
 
         if (form) {
             form.onsubmit = async (e) => {
                 e.preventDefault();
-                const user = document.getElementById('username').value;
-                const pass = document.getElementById('password').value;
 
-                if (await Auth.login(user, pass)) {
-                    location.reload();
+                if (loginMode === 'admin') {
+                    const user = document.getElementById('username').value;
+                    const pass = document.getElementById('password').value;
+                    if (await Auth.login(user, pass)) {
+                        location.reload();
+                    } else {
+                        if (error) {
+                            error.innerText = 'Usuario o contraseña incorrectos.';
+                            error.style.display = 'block';
+                        }
+                    }
                 } else {
-                    if (error) error.style.display = 'block';
-                    form.reset();
-                    document.getElementById('username').focus();
+                    const pin = document.getElementById('employee-pin').value;
+                    if (await Auth.employeeAuth(pin)) {
+                        location.reload();
+                    } else {
+                        if (error) {
+                            error.innerText = 'PIN incorrecto o empleado inactivo.';
+                            error.style.display = 'block';
+                        }
+                    }
                 }
             };
         }
@@ -861,22 +947,34 @@ const Views = {
 
     calculator: async () => {
         const employees = await Storage.get('employees');
+        const user = Auth.getUser();
+        const isAdmin = user && user.role === 'admin';
         const activeEmployees = employees.filter(e => e.status === 'Active');
 
         return `
             <div class="card-container">
                 <div style="margin-bottom: 2rem">
-                    <h3>Calculadora de Pago por Periodo</h3>
-                    <p style="color: var(--text-muted); font-size: 0.9rem">Ingrese las horas diarias para calcular el pago total de la semana o mes.</p>
+                    <h3 style="color: var(--primary)">${isAdmin ? 'Calculadora de Pago por Periodo' : 'Portal de Registro de Horas'}</h3>
+                    <p style="color: var(--text-muted); font-size: 0.9rem">
+                        ${isAdmin ? 'Ingrese las horas diarias para calcular el pago total de la semana o mes.' : 'Bienvenido ' + user.name + '. Ingrese sus horas laboradas aquí.'}
+                    </p>
                 </div>
 
-                <div class="form-group" style="max-width: 400px; margin-bottom: 2rem;">
+                <div class="form-group" style="max-width: 400px; margin-bottom: 2rem; ${isAdmin ? '' : 'display: none'}">
                     <label>Seleccionar Empleado</label>
                     <select id="calc-employee-id" required>
-                        <option value="">Seleccione un empleado...</option>
-                        ${activeEmployees.map(e => `<option value="${e.id}">${e.name} (₡${parseFloat(e.hourly_rate).toLocaleString()}/h)</option>`).join('')}
+                        ${isAdmin ? '<option value="">Seleccione un empleado...</option>' : ''}
+                        ${activeEmployees.map(e => `
+                            <option value="${e.id}" ${(!isAdmin && e.id == user.id) ? 'selected' : ''}>
+                                ${e.name} (₡${parseFloat(e.hourly_rate).toLocaleString()}/h)
+                            </option>
+                        `).join('')}
                     </select>
                 </div>
+                ${!isAdmin ? `<div style="margin-bottom: 2rem; padding: 1rem; background: rgba(99,102,241,0.1); border-radius: 12px; border-left: 4px solid var(--primary);">
+                    <div style="font-weight: 600; font-size: 1.1rem; color: white">${user.name}</div>
+                    <div style="color: var(--text-muted); font-size: 0.85rem">Registrando horas para el historial</div>
+                </div>` : ''}
 
                 <div class="table-container">
                     <table id="calc-table">
@@ -999,12 +1097,18 @@ const Views = {
             createRow();
         };
 
+        if (Auth.getUser().role === 'employee') {
+            window.updateCalcTotal();
+        }
+
         saveBtn.onclick = async () => {
             const empId = empSelect.value;
             if (!empId) return;
 
             const rows = tbody.querySelectorAll('tr');
             let successCount = 0;
+
+            Storage.showLoader(true, 'Guardando registros...');
 
             for (const tr of rows) {
                 const date = tr.querySelector('.calc-date').value;
@@ -1027,8 +1131,14 @@ const Views = {
                 successCount++;
             }
 
-            alert(`¡Éxito! Se guardaron ${successCount} registros en el historial.`);
-            App.switchView('payroll');
+            Storage.showLoader(false);
+            alert(`¡Éxito! Se guardaron ${successCount} registros correspondientes a su tiempo laborado.`);
+
+            if (Auth.getUser().role === 'admin') {
+                App.switchView('payroll');
+            } else {
+                window.clearCalculator();
+            }
         };
 
         createRow();

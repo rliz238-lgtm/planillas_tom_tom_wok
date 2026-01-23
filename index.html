@@ -25,16 +25,38 @@
                 Usuario o contraseña incorrectos.
             </div>
 
+            <div id="login-mode-selector"
+                style="display: flex; gap: 10px; margin-bottom: 2rem; background: rgba(255,255,255,0.05); padding: 5px; border-radius: 12px;">
+                <button class="btn" id="btn-mode-admin"
+                    style="flex: 1; font-size: 0.85rem; background: var(--primary); color: white;">Administrador</button>
+                <button class="btn" id="btn-mode-emp"
+                    style="flex: 1; font-size: 0.85rem; background: transparent; color: var(--text-muted);">Soy
+                    Empleado</button>
+            </div>
+
             <form class="login-form" id="login-form">
-                <div class="login-input-group">
-                    <label>Usuario</label>
-                    <input type="text" id="username" placeholder="admin" required autofocus>
+                <!-- Campos para Admin -->
+                <div id="admin-fields">
+                    <div class="login-input-group">
+                        <label>Usuario</label>
+                        <input type="text" id="username" placeholder="admin">
+                    </div>
+                    <div class="login-input-group">
+                        <label>Contraseña</label>
+                        <input type="password" id="password" placeholder="••••••••">
+                    </div>
                 </div>
-                <div class="login-input-group">
-                    <label>Contraseña</label>
-                    <input type="password" id="password" placeholder="••••••••" required>
+
+                <!-- Campos para Empleado (PIN) -->
+                <div id="employee-fields" style="display: none;">
+                    <div class="login-input-group">
+                        <label>Ingrese su PIN de 4 dígitos</label>
+                        <input type="password" id="employee-pin" placeholder="0000" maxlength="4" inputmode="numeric"
+                            style="text-align: center; font-size: 1.5rem; letter-spacing: 12px;">
+                    </div>
                 </div>
-                <button type="submit" class="login-btn">Entrar al Sistema</button>
+
+                <button type="submit" class="login-btn" id="submit-login">Entrar al Sistema</button>
             </form>
 
             <p style="margin-top: 2rem; font-size: 0.8rem; color: var(--text-muted)">
