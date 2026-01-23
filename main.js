@@ -1470,18 +1470,16 @@ const Views = {
                         employees.push(newEmp); // Add to local list to avoid duplicates in same run
                     }
 
-                    await Storage.add('payments', {
+                    await Storage.add('logs', {
                         employeeId: parseInt(empId),
                         date: item.date,
-                        amount: item.amount,
                         hours: item.hours,
-                        deductionCCSS: 0,
-                        netAmount: item.amount,
+                        notes: 'Importado de Excel',
                         isImported: true
                     });
                 }
 
-                alert('Importación completada con éxito');
+                alert(`¡Éxito! Se han cargado ${importedData.length} registros como "Horas Pendientes". Ahora puede revisarlos y pagarlos en la sección de Planillas.`);
                 App.switchView('payroll');
             };
         }
