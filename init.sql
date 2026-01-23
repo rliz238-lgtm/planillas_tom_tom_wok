@@ -60,11 +60,24 @@ CREATE TABLE IF NOT EXISTS settings (
 -- Migraciones para bases de datos existentes
 DO $$ 
 BEGIN 
+    -- Logs Migrations
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='logs' AND column_name='is_paid') THEN
         ALTER TABLE logs ADD COLUMN is_paid BOOLEAN DEFAULT FALSE;
     END IF;
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='logs' AND column_name='is_imported') THEN
         ALTER TABLE logs ADD COLUMN is_imported BOOLEAN DEFAULT FALSE;
+    END IF;
+
+    -- Employees Migrations
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='employees' AND column_name='salary_history') THEN
+        ALTER TABLE employees ADD COLUMN salary_history JSONB DEFAULT '[]'::jsonb;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='employees' AND column_name='hourly_rate') THEN
+        -- Si por alguna razón no existe, la creamos (debería existir según el schema base)
+        ALTER TABLE employees ADD COLUMN hourly_rate DECIMAL(10, 2) DEFAULT 0;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='employees' AND column_name='apply_ccss') THEN
+        ALTER TABLE employees ADD COLUMN apply_ccss BOOLEAN DEFAULT FALSE;
     END IF;
 END $$;
 
