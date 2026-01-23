@@ -1408,41 +1408,53 @@ const Views = {
             tbody.innerHTML = '';
             importedData = [];
 
+            console.log("Procesando", rows.length, "filas. Empleados actuales:", employees.length);
+
             for (const row of rows) {
-                const name = row[2];
+                // Columnas: A(0)=Ini, B(1)=Fin, C(2)=Empleado, D(3)=Horas, ..., O(14)=Total
+                const name = row[2] ? String(row[2]).trim() : null;
+                if (!name || name === "Empleado") continue; // Saltar si no hay nombre o es encabezado repetido
+
                 const hours = parseFloat(row[3]) || 0;
                 const amount = parseFloat(row[14]) || 0;
                 const dateIni = excelDateToJSDate(row[0]);
                 const dateFin = excelDateToJSDate(row[1]);
 
-                if (name) {
-                    const emp = employees.find(e => e.name.toLowerCase() === String(name).toLowerCase());
-                    const statusText = emp ? '✅ Vinculado' : '⚠️ Autocrear';
+                // Búsqueda más flexible del empleado
+                const emp = employees.find(e =>
+                    e.name.trim().toLowerCase() === name.toLowerCase() ||
+                    e.name.trim().toLowerCase().includes(name.toLowerCase())
+                );
 
-                    importedData.push({
-                        name: String(name),
-                        hours: hours,
-                        amount: amount,
-                        date: dateFin || Storage.getLocalDate(),
-                        employee_id: emp ? emp.id : null,
-                        rate: emp ? parseFloat(emp.hourly_rate) : (amount / (hours || 1))
-                    });
+                const statusText = emp ? '✅ Vinculado' : '⚠️ Autocrear';
 
-                    tbody.innerHTML += `
-                        <tr>
-                            <td>${dateIni || '-'}</td>
-                            <td>${dateFin || '-'}</td>
-                            <td style="font-weight:600">${name}</td>
-                            <td>${hours}h</td>
-                            <td>₡${Math.round(amount).toLocaleString()}</td>
-                            <td style="color: ${emp ? 'var(--success)' : 'var(--warning)'}">${statusText}</td>
-                        </tr>
-                    `;
-                }
+                importedData.push({
+                    name: name,
+                    hours: hours,
+                    amount: amount,
+                    date: dateFin || Storage.getLocalDate(),
+                    employee_id: emp ? emp.id : null,
+                    rate: emp ? parseFloat(emp.hourly_rate) : (hours > 0 ? (amount / hours) : 3500)
+                });
+
+                tbody.innerHTML += `
+                    <tr>
+                        <td>${dateIni || '-'}</td>
+                        <td>${dateFin || '-'}</td>
+                        <td style="font-weight:600">${name}</td>
+                        <td>${hours.toFixed(1)}h</td>
+                        <td>₡${Math.round(amount).toLocaleString()}</td>
+                        <td style="color: ${emp ? 'var(--success)' : 'var(--warning)'}">${statusText}</td>
+                    </tr>
+                `;
             }
 
-            preview.style.display = 'block';
-            dropZone.style.display = 'none';
+            if (importedData.length > 0) {
+                preview.style.display = 'block';
+                dropZone.style.display = 'none';
+            } else {
+                alert("No se encontraron registros válidos. Verifique que el nombre esté en la columna C y que el archivo no esté protegido.");
+            }
         };
 
         const executeBtn = document.getElementById('execute-import-btn');
