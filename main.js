@@ -1149,25 +1149,27 @@ const Views = {
         const logs = await Storage.get('logs');
         const payments = await Storage.get('payments');
 
-        const pendingSummary = [];
-        employees.filter(e => e.status === 'Active').forEach(emp => {
-            const empLogs = logs.filter(l => l.employee_id == emp.id && !l.is_paid);
-            if (empLogs.length > 0) {
-                const totalHours = empLogs.reduce((s, l) => s + parseFloat(l.hours), 0);
-                const gross = totalHours * parseFloat(emp.hourly_rate);
-                const deduction = emp.apply_ccss ? (gross * 0.1067) : 0;
-                const net = gross - deduction;
+        // Filtrar logs no pagados y mapearlos con datos del empleado
+        const pendingLogs = logs.filter(l => !l.is_paid).map(log => {
+            const emp = employees.find(e => e.id == log.employee_id);
+            if (!emp) return null;
 
-                pendingSummary.push({
-                    id: emp.id,
-                    name: emp.name,
-                    hours: totalHours,
-                    net: net,
-                    deduction: deduction,
-                    logCount: empLogs.length
-                });
-            }
-        });
+            const hours = parseFloat(log.hours);
+            const gross = hours * parseFloat(emp.hourly_rate);
+            const deduction = emp.apply_ccss ? (gross * 0.1067) : 0;
+            const net = gross - deduction;
+
+            return {
+                id: log.id,
+                empId: emp.id,
+                name: emp.name,
+                date: log.date ? log.date.split('T')[0] : '—',
+                hours: hours,
+                gross: gross,
+                deduction: deduction,
+                net: net
+            };
+        }).filter(l => l !== null).sort((a, b) => new Date(b.date) - new Date(a.date));
 
         return `
             <div class="card-container">
@@ -1183,25 +1185,27 @@ const Views = {
                         <thead>
                             <tr>
                                 <th style="width: 40px"><input type="checkbox" id="select-all-pending" checked></th>
+                                <th>Fecha</th>
                                 <th>Empleado</th>
-                                <th>Horas Acum.</th>
+                                <th>Horas</th>
                                 <th>CCSS (Est.)</th>
                                 <th>Monto Neto</th>
                                 <th>Acción</th>
                             </tr>
                         </thead>
                         <tbody>
-                            ${pendingSummary.map(ps => `
+                            ${pendingLogs.map(pl => `
                                 <tr>
-                                    <td><input type="checkbox" class="pending-check" data-id="${ps.id}" data-hours="${ps.hours}" data-net="${ps.net}" data-deduction="${ps.deduction}" checked></td>
-                                    <td style="font-weight: 600; color: white;">${ps.name}</td>
-                                    <td>${ps.hours.toFixed(1)}h</td>
-                                    <td style="color: var(--danger)">₡${Math.round(ps.deduction).toLocaleString()}</td>
-                                    <td style="color: var(--success); font-weight: 600;">₡${Math.round(ps.net).toLocaleString()}</td>
-                                    <td><button class="btn" onclick="window.clearEmpLogs(${ps.id})" style="padding: 4px 8px; font-size: 0.8rem">Reasentir Horas</button></td>
+                                    <td><input type="checkbox" class="pending-check" data-id="${pl.id}" data-empid="${pl.empId}" data-hours="${pl.hours}" data-net="${pl.net}" data-deduction="${pl.deduction}" data-date="${pl.date}" checked></td>
+                                    <td style="font-size: 0.85rem">${pl.date}</td>
+                                    <td style="font-weight: 600; color: white;">${pl.name}</td>
+                                    <td>${pl.hours.toFixed(1)}h</td>
+                                    <td style="color: var(--danger)">₡${Math.round(pl.deduction).toLocaleString()}</td>
+                                    <td style="color: var(--success); font-weight: 600;">₡${Math.round(pl.net).toLocaleString()}</td>
+                                    <td><button class="btn btn-danger" onclick="window.deleteLog(${pl.id})" style="padding: 4px 8px; font-size: 0.8rem">🗑️</button></td>
                                 </tr>
                             `).join('')}
-                            ${pendingSummary.length === 0 ? '<tr><td colspan="6" style="text-align:center">No hay horas pendientes de pago</td></tr>' : ''}
+                            ${pendingLogs.length === 0 ? '<tr><td colspan="7" style="text-align:center">No hay horas pendientes de pago</td></tr>' : ''}
                         </tbody>
                     </table>
                 </div>
@@ -1274,21 +1278,23 @@ const Views = {
             const selected = document.querySelectorAll('.pending-check:checked');
             if (selected.length === 0) return alert('Seleccione al menos un pago');
 
-            if (!confirm(`¿Procesar ${selected.length} pagos?`)) return;
+            if (!confirm(`¿Procesar ${selected.length} pagos individuales?`)) return;
 
             Storage.showLoader(true, 'Procesando pagos...');
 
             try {
                 for (const check of selected) {
-                    const empId = check.dataset.id;
+                    const logId = check.dataset.id;
+                    const empId = check.dataset.empid;
                     const hours = parseFloat(check.dataset.hours);
                     const net = parseFloat(check.dataset.net);
                     const deduction = parseFloat(check.dataset.deduction);
+                    const logDate = check.dataset.date;
 
-                    // 1. Guardar el pago
+                    // 1. Guardar el pago (uno por cada log seleccionado)
                     const payResult = await Storage.add('payments', {
                         employeeId: parseInt(empId),
-                        date: Storage.getLocalDate(),
+                        date: logDate, // Usamos la fecha del log para el historial
                         amount: net,
                         hours: hours,
                         deductionCCSS: deduction,
@@ -1296,12 +1302,12 @@ const Views = {
                         isImported: false
                     });
 
-                    // 2. Solo si el pago se guardó bien, borramos las horas (logs)
+                    // 2. Solo si el pago se guardó bien, borramos ese log específico
                     if (payResult && payResult.success) {
-                        await Storage.deleteLogsByEmployee(empId);
+                        await Storage.delete('logs', logId); // Borramos solo este registro de horas
                     } else {
-                        console.error("Fallo al guardar pago para empId:", empId, payResult.error);
-                        throw new Error(`No se pudo procesar el pago de uno o más empleados.`);
+                        console.error("Fallo al guardar pago para logId:", logId, payResult.error);
+                        throw new Error(`No se pudo procesar el pago de uno o más registros.`);
                     }
                 }
 
@@ -1315,6 +1321,12 @@ const Views = {
                 console.error("Error al procesar planilla:", err);
                 alert("Hubo un error al procesar algunos pagos.");
             }
+        };
+
+        window.deleteLog = async (id) => {
+            if (!confirm('¿Desea eliminar este registro de horas?')) return;
+            await Storage.delete('logs', id);
+            App.renderView('payroll');
         };
 
         window.clearEmpLogs = async (id) => {
