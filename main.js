@@ -247,6 +247,38 @@ const App = {
     }
 };
 
+// --- Global Utilities ---
+window.clearTable = async (target) => {
+    const labels = {
+        logs: 'todas las horas pendientes',
+        payments: 'todo el historial de pagos',
+        employees: 'todos los empleados',
+        all: 'TODA LA INFORMACIÓN (Horas, Pagos y Empleados)'
+    };
+
+    if (!confirm(`⚠️ ALERTA: ¿Está seguro de que desea eliminar ${labels[target]}?\n\nEsta acción no se puede deshacer.`)) return;
+
+    // Doble confirmación para reinicio total
+    if (target === 'all' && !confirm('¿ESTÁ ABSOLUTAMENTE SEGURO? Se perderán todos los datos registrados.')) return;
+
+    Storage.showLoader(true, 'Limpiando base de datos...');
+    try {
+        const response = await fetch(`/api/maintenance/clear-all?target=${target}`, { method: 'DELETE' });
+        const result = await response.json();
+        Storage.showLoader(false);
+
+        if (result.success) {
+            alert('Limpieza completada con éxito.');
+            location.reload(); // Recargar para limpiar todo el estado
+        } else {
+            alert('Error: ' + result.error);
+        }
+    } catch (err) {
+        Storage.showLoader(false);
+        alert('Error al conectar con el servidor.');
+    }
+};
+
 // --- UI Components & Views ---
 const Views = {
     dashboard: async () => {
@@ -1634,6 +1666,17 @@ const Views = {
                             `).join('')}
                         </tbody>
                     </table>
+                </div>
+            <div class="card-container" style="margin-top: 2rem; border: 1px solid var(--danger); background: rgba(239, 68, 68, 0.02);">
+                <div style="margin-bottom: 1.5rem">
+                    <h3 style="color: var(--danger)">🛠️ Zona de Mantenimiento</h3>
+                    <p style="color: var(--text-muted); font-size: 0.9rem">Use estas opciones para corregir errores de importación o reiniciar el sistema. <strong>Cuidado: Esta acción es irreversible.</strong></p>
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                    <button class="btn" style="background: rgba(239, 68, 68, 0.1); color: var(--danger); border: 1px solid rgba(239, 68, 68, 0.2);" onclick="window.clearTable('logs')">🗑️ Borrar Horas Pendientes</button>
+                    <button class="btn" style="background: rgba(239, 68, 68, 0.1); color: var(--danger); border: 1px solid rgba(239, 68, 68, 0.2);" onclick="window.clearTable('payments')">🗑️ Borrar Historial Pagos</button>
+                    <button class="btn" style="background: rgba(239, 68, 68, 0.1); color: var(--danger); border: 1px solid rgba(239, 68, 68, 0.2);" onclick="window.clearTable('employees')">🗑️ Borrar Todos los Empleados</button>
+                    <button class="btn" style="background: var(--danger); color: white;" onclick="window.clearTable('all')">🔥 REINICIO TOTAL</button>
                 </div>
             </div>
 

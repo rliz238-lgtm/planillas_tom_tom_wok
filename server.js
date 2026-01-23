@@ -270,6 +270,29 @@ app.delete('/api/payments/:id', async (req, res) => {
 
 // La ruta /api/employee-auth estaba duplicada, se mantiene una sola instancia.
 
+// --- Mantenimiento ---
+app.delete('/api/maintenance/clear-all', async (req, res) => {
+    const { target } = req.query; // 'logs', 'payments', 'employees', 'all'
+    try {
+        if (target === 'logs') {
+            await db.query('DELETE FROM logs');
+        } else if (target === 'payments') {
+            await db.query('DELETE FROM payments');
+        } else if (target === 'employees') {
+            await db.query('DELETE FROM employees');
+        } else if (target === 'all') {
+            await db.query('DELETE FROM logs');
+            await db.query('DELETE FROM payments');
+            await db.query('DELETE FROM employees');
+        } else {
+            return res.status(400).json({ error: 'Objetivo de limpieza no válido' });
+        }
+        res.json({ success: true, message: `Limpieza de ${target} completada` });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 app.listen(PORT, () => {
     console.log(`Servidor backend de Tom Tom Wok corriendo en puerto ${PORT}`);
 });
