@@ -33,7 +33,8 @@ const Storage = {
 
     async get(key) {
         try {
-            const response = await fetch(`/api/${this.SCHEMA[key]}`);
+            // Añadimos un timestamp para evitar que el navegador devuelva datos viejos (caché)
+            const response = await fetch(`/api/${this.SCHEMA[key]}?_t=${Date.now()}`);
             if (!response.ok) throw new Error('Error al obtener datos');
             return await response.json();
         } catch (err) {
@@ -1133,26 +1134,40 @@ const Views = {
 
             if (!confirm(`¿Procesar ${selected.length} pagos?`)) return;
 
-            for (const check of selected) {
-                const empId = check.dataset.id;
-                const hours = parseFloat(check.dataset.hours);
-                const net = parseFloat(check.dataset.net);
-                const deduction = parseFloat(check.dataset.deduction);
+            Storage.showLoader(true, 'Procesando pagos...');
 
-                await Storage.add('payments', {
-                    employeeId: parseInt(empId),
-                    date: Storage.getLocalDate(),
-                    amount: net,
-                    hours: hours,
-                    deductionCCSS: deduction,
-                    netAmount: net,
-                    isImported: false
-                });
+            try {
+                for (const check of selected) {
+                    const empId = check.dataset.id;
+                    const hours = parseFloat(check.dataset.hours);
+                    const net = parseFloat(check.dataset.net);
+                    const deduction = parseFloat(check.dataset.deduction);
 
-                await Storage.deleteLogsByEmployee(empId);
+                    // 1. Guardar el pago
+                    await Storage.add('payments', {
+                        employeeId: parseInt(empId),
+                        date: Storage.getLocalDate(),
+                        amount: net,
+                        hours: hours,
+                        deductionCCSS: deduction,
+                        netAmount: net,
+                        isImported: false
+                    });
+
+                    // 2. Borrar las horas (logs) para que ya no salgan como pendientes
+                    await Storage.deleteLogsByEmployee(empId);
+                }
+
+                Storage.showLoader(false);
+                alert('¡Pagos procesados exitosamente!');
+
+                // Forzar recarga completa de la vista
+                App.switchView('payroll');
+            } catch (err) {
+                Storage.showLoader(false);
+                console.error("Error al procesar planilla:", err);
+                alert("Hubo un error al procesar algunos pagos.");
             }
-
-            App.renderView('payroll');
         };
 
         window.clearEmpLogs = async (id) => {
@@ -1506,25 +1521,33 @@ const Views = {
             executeBtn.onclick = async () => {
                 if (!confirm(`Se importarán ${importedData.length} registros. ¿Continuar?`)) return;
 
-                Storage.showLoader(true, 'Iniciando importación...', 0);
+                Storage.showLoader(true, 'Preparando lista de empleados...', 0);
 
                 try {
-                    const employees = await Storage.get('employees');
+                    // Obtener lista fresca de empleados
+                    let employees = await Storage.get('employees');
                     let successCount = 0;
                     let errorCount = 0;
 
                     for (let i = 0; i < importedData.length; i++) {
                         const item = importedData[i];
                         const progress = Math.round(((i + 1) / importedData.length) * 100);
-                        Storage.showLoader(true, `Importando (${i + 1}/${importedData.length}): ${item.name}`, progress);
+                        Storage.showLoader(true, `Procesando (${i + 1}/${importedData.length}): ${item.name}`, progress);
 
                         try {
-                            let empId = item.employee_id;
+                            const trimmedName = item.name.trim();
+                            // IMPORTANTE: Buscar de nuevo por nombre para evitar duplicar si ya lo creamos
+                            // en una iteración anterior de este mismo bucle.
+                            let emp = employees.find(e =>
+                                e.name.trim().toLowerCase() === trimmedName.toLowerCase()
+                            );
 
-                            // Auto-create employee if not found
+                            let empId = emp ? emp.id : null;
+
+                            // Si no existe, lo creamos
                             if (!empId) {
                                 const newEmpResult = await Storage.add('employees', {
-                                    name: item.name,
+                                    name: trimmedName,
                                     position: 'Importado',
                                     hourlyRate: item.rate || 3500,
                                     startDate: item.date,
@@ -1535,15 +1558,20 @@ const Views = {
 
                                 if (newEmpResult.success && newEmpResult.id) {
                                     empId = newEmpResult.id;
-                                    // Añadir al arreglo local para futuras coincidencias en el mismo archivo
-                                    employees.push(newEmpResult);
+                                    // Lo añadimos a nuestra lista local para no volver a crearlo si aparece más abajo
+                                    employees.push({
+                                        id: empId,
+                                        name: trimmedName,
+                                        hourly_rate: item.rate || 3500
+                                    });
                                 } else {
-                                    console.error("Error al auto-crear empleado:", item.name, newEmpResult.error);
+                                    console.error("No se pudo crear empleado:", trimmedName);
                                     errorCount++;
                                     continue;
                                 }
                             }
 
+                            // Guardar el log de horas vinculándolo al ID encontrado/creado
                             const logResult = await Storage.add('logs', {
                                 employeeId: parseInt(empId),
                                 date: item.date,
@@ -1555,30 +1583,22 @@ const Views = {
                             if (logResult.success) {
                                 successCount++;
                             } else {
-                                console.error("Error al guardar log:", item.name, logResult.error);
                                 errorCount++;
                             }
                         } catch (err) {
-                            console.error("Error inesperado en registro:", item.name, err);
+                            console.error("Fallo registro individual:", err);
                             errorCount++;
                         }
                     }
 
                     Storage.showLoader(false);
-
-                    if (errorCount > 0) {
-                        alert(`Importación finalizada con avisos.\n✅ Éxito: ${successCount}\n❌ Error: ${errorCount}\n\nLos datos guardados ya están disponibles en Planillas y Dashboard.`);
-                    } else {
-                        alert(`¡Éxito total! Se han cargado ${successCount} registros como "Horas Pendientes".`);
-                    }
-
-                    // Asegurar que la vista se refresque completamente
+                    alert(`Importación finalizada.\n✅ Éxito: ${successCount}\n❌ Error/Omitido: ${errorCount}`);
                     App.switchView('payroll');
 
-                } catch (globalErr) {
+                } catch (err) {
                     Storage.showLoader(false);
-                    console.error("Error global en importación:", globalErr);
-                    alert("Ocurrió un error crítico durante la importación. Verifique la consola.");
+                    console.error("Error crítico en importación:", err);
+                    alert("Error crítico durante la importación.");
                 }
             };
         }
