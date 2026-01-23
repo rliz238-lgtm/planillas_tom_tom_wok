@@ -1,14 +1,16 @@
 /**
  * Planillas Tom Tom Wok - Core Logic (API Version)
+ * Restauración Completa desde Backup con Soporte PostgreSQL
  */
 
-// --- Data Persistence Layer ---
+// --- Data Persistence Layer (API) ---
 const Storage = {
-    data: {
-        employees: [],
-        logs: [],
-        payments: [],
-        users: []
+    SCHEMA: {
+        employees: 'employees',
+        logs: 'logs',
+        payments: 'payments',
+        settings: 'settings',
+        users: 'users'
     },
 
     getLocalDate(d = new Date()) {
@@ -18,115 +20,100 @@ const Storage = {
         return `${y}-${m}-${day}`;
     },
 
-    async init() {
+    async get(key) {
         try {
-            console.log('🔄 Sincronizando datos...');
-            const results = await Promise.all([
-                fetch('/api/employees').then(r => r.json()),
-                fetch('/api/logs').then(r => r.json()),
-                fetch('/api/users').then(r => r.json()),
-                fetch('/api/payments').then(r => r.json()),
-            ]);
-
-            this.data.employees = results[0];
-            this.data.logs = results[1];
-            this.data.users = results[2];
-            this.data.payments = results[3];
-
-            // Normalización de datos para compatibilidad con lógica de backup
-            this.data.employees.forEach(e => {
-                e.hourlyRate = parseFloat(e.hourly_rate);
-                e.startDate = e.start_date ? e.start_date.substring(0, 10) : '';
-                e.endDate = e.end_date ? e.end_date.substring(0, 10) : '';
-                e.applyCCSS = e.apply_ccss;
-            });
-
-            this.data.logs.forEach(l => {
-                l.employeeId = String(l.employee_id);
-                l.date = l.date.substring(0, 10);
-                l.hours = parseFloat(l.hours);
-            });
-
-            this.data.payments.forEach(p => {
-                p.employeeId = String(p.employee_id);
-                p.date = p.date.substring(0, 10);
-                p.amount = parseFloat(p.amount);
-                p.hours = parseFloat(p.hours || 0);
-            });
-
-            console.log('✅ Datos sincronizados con éxito');
+            const response = await fetch(`/api/${this.SCHEMA[key]}`);
+            if (!response.ok) throw new Error('Error al obtener datos');
+            return await response.json();
         } catch (err) {
-            console.error('❌ Error al sincronizar datos:', err);
+            console.error(err);
+            return [];
         }
     },
 
-    get(key) {
-        return this.data[key] || [];
-    },
-
     async add(key, item) {
-        const endpoints = {
-            employees: '/api/employees',
-            logs: '/api/logs',
-            payments: '/api/payments',
-            users: '/api/users'
-        };
-
         try {
-            const response = await fetch(endpoints[key], {
+            const response = await fetch(`/api/${this.SCHEMA[key]}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(item)
             });
-            const newItem = await response.json();
-            await this.init(); // Resync
-            return newItem;
+            if (!response.ok) throw new Error('Error al agregar dato');
+            return await response.json();
         } catch (err) {
-            console.error(`Error adding to ${key}:`, err);
+            console.error(err);
+            return null;
         }
     },
 
     async update(key, id, updates) {
-        if (key !== 'employees') {
-            console.warn('Update only implemented for employees currently');
-            return;
-        }
-
         try {
-            await fetch(`/api/employees/${id}`, {
+            const response = await fetch(`/api/${this.SCHEMA[key]}/${id}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(updates)
             });
-            await this.init(); // Resync
+            if (!response.ok) throw new Error('Error al actualizar dato');
+            return await response.json();
         } catch (err) {
-            console.error(`Error updating ${key}:`, err);
+            console.error(err);
+            return null;
         }
     },
 
     async delete(key, id) {
-        if (key !== 'employees') {
-            console.warn('Delete only implemented for employees currently');
-            return;
-        }
-
         try {
-            await fetch(`/api/employees/${id}`, {
+            const response = await fetch(`/api/${this.SCHEMA[key]}/${id}`, {
                 method: 'DELETE'
             });
-            await this.init(); // Resync
+            if (!response.ok) throw new Error('Error al eliminar dato');
+            return true;
         } catch (err) {
-            console.error(`Error deleting ${key}:`, err);
+            console.error(err);
+            return false;
+        }
+    },
+
+    async deleteLogsByEmployee(employeeId) {
+        try {
+            const response = await fetch(`/api/logs/employee/${employeeId}`, {
+                method: 'DELETE'
+            });
+            return response.ok;
+        } catch (err) {
+            console.error(err);
+            return false;
         }
     }
 };
 
 // --- Authentication Layer ---
 const Auth = {
-    SCHEMA: 'ttw_user',
+    SCHEMA: 'ttw_session_v2026',
 
-    login(username, password) {
-        // Handled via fetch in App.renderLogin
+    async login(username, password) {
+        try {
+            const response = await fetch('/api/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+
+            if (response.ok) {
+                const user = await response.json();
+                localStorage.setItem(this.SCHEMA, JSON.stringify({
+                    id: user.id,
+                    username: user.username,
+                    name: user.name,
+                    loginTime: Date.now()
+                }));
+                return true;
+            }
+            return false;
+        } catch (err) {
+            console.error('Error en login:', err);
+            return false;
+        }
     },
 
     logout() {
@@ -153,56 +140,48 @@ const App = {
             this.renderLogin();
             return;
         }
-        await Storage.init();
+
+        const appElem = document.getElementById('app');
+        const loginView = document.getElementById('login-view');
+        if (appElem) appElem.style.display = 'flex';
+        if (loginView) loginView.style.display = 'none';
+
+        const userNameDisplay = document.querySelector('.username');
+        if (userNameDisplay) userNameDisplay.textContent = Auth.getUser().name;
+
         this.setupNavigation();
-        this.renderView('dashboard');
+        await this.renderView('dashboard');
 
         const logoutBtn = document.getElementById('logout-btn');
         if (logoutBtn) {
             logoutBtn.onclick = () => Auth.logout();
         }
-
-        const displayEl = document.querySelector('.username-display');
-        if (displayEl) {
-            const user = Auth.getUser();
-            displayEl.textContent = user.name || user.username;
-        }
     },
 
     renderLogin() {
-        document.getElementById('login-view').style.display = 'flex';
-        document.getElementById('app').style.display = 'none';
+        const appElem = document.getElementById('app');
+        const loginView = document.getElementById('login-view');
+        if (appElem) appElem.style.display = 'none';
+        if (loginView) loginView.style.display = 'flex';
 
         const form = document.getElementById('login-form');
         const error = document.getElementById('login-error');
 
-        form.onsubmit = async (e) => {
-            e.preventDefault();
-            const username = document.getElementById('username').value;
-            const password = document.getElementById('password').value;
+        if (form) {
+            form.onsubmit = async (e) => {
+                e.preventDefault();
+                const user = document.getElementById('username').value;
+                const pass = document.getElementById('password').value;
 
-            try {
-                const response = await fetch('/api/login', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username, password })
-                });
-
-                if (response.ok) {
-                    const user = await response.json();
-                    localStorage.setItem(Auth.SCHEMA, JSON.stringify(user));
+                if (await Auth.login(user, pass)) {
                     location.reload();
                 } else {
-                    error.style.display = 'block';
+                    if (error) error.style.display = 'block';
                     form.reset();
                     document.getElementById('username').focus();
                 }
-            } catch (err) {
-                console.error('Error in login:', err);
-                error.style.display = 'block';
-                error.textContent = 'Error de conexión';
-            }
-        };
+            };
+        }
     },
 
     setupNavigation() {
@@ -214,7 +193,7 @@ const App = {
         });
     },
 
-    switchView(view, arg = null) {
+    async switchView(view, arg = null) {
         const navItem = document.querySelector(`[data-view="${view}"]`);
         if (navItem) {
             document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
@@ -222,47 +201,65 @@ const App = {
         }
 
         const titles = {
-            dashboard: '📊 Dashboard',
-            employees: '👥 Empleados',
-            employeeDetail: '🔍 Detalle',
-            calculator: '🧮 Calculadora',
-            payroll: '💰 Planillas',
-            benefits: '⚖️ Prestaciones',
-            import: '📥 Importar',
-            profile: '⚙️ Mi Perfil'
+            dashboard: 'Dashboard',
+            employees: 'Gestión de Empleados',
+            employeeDetail: 'Detalle de Empleado',
+            calculator: 'Calculadora de Pago Semanal',
+            payroll: 'Cálculo de Planillas',
+            benefits: 'Prestaciones de Ley',
+            import: 'Importar Datos Excel',
+            profile: 'Configuración de Mi Perfil'
         };
 
-        document.getElementById('view-title').textContent = titles[view] || 'Tom Tom Wok';
-        this.renderView(view, arg);
+        const viewTitle = document.getElementById('view-title');
+        if (viewTitle) viewTitle.textContent = titles[view] || 'Planillas Tom Tom Wok';
+
+        await this.renderView(view, arg);
     },
 
-    renderView(view, arg = null) {
+    async renderView(view, arg = null) {
         const container = document.getElementById('view-container');
-        document.getElementById('login-view').style.display = 'none';
-        document.getElementById('app').style.display = 'flex';
+        if (!container) return;
 
-        container.innerHTML = `<div class="view-animate">${Views[view](arg)}</div>`;
+        container.innerHTML = `<div class="view-loading">Cargando vista...</div>`;
+        const html = await Views[view](arg);
+        container.innerHTML = `<div class="view-animate">${html}</div>`;
 
         if (Views[`init_${view}`]) {
-            Views[`init_${view}`](arg);
+            await Views[`init_${view}`](arg);
         }
     }
 };
 
 // --- UI Components & Views ---
 const Views = {
-    dashboard: () => {
-        const employees = Storage.get('employees');
+    dashboard: async () => {
+        const employees = await Storage.get('employees');
         const activeEmployees = employees.filter(e => e.status === 'Active');
-        const logs = Storage.get('logs');
+        const rawLogs = await Storage.get('logs');
+
+        // Deduplicate logs
+        const uniqueLogKeys = new Set();
+        const logs = rawLogs.filter(l => {
+            const key = `${l.employee_id}|${l.date}|${l.hours}|${l.time_in || ''}|${l.time_out || ''}`;
+            if (uniqueLogKeys.has(key)) return false;
+            uniqueLogKeys.add(key);
+            return true;
+        });
 
         const now = new Date();
         const todayStr = Storage.getLocalDate();
         const currentMonth = todayStr.substring(0, 7);
-        const monthLogs = logs.filter(l => l.date && l.date.startsWith(currentMonth));
-        const monthHours = monthLogs.reduce((s, l) => s + l.hours, 0);
+        const monthLogs = logs.filter(l => l.date && l.date.substring(0, 7) === currentMonth);
+        const monthHours = monthLogs.reduce((s, l) => s + parseFloat(l.hours || 0), 0);
 
-        // Semana Actual (Lunes a Domingo)
+        const monthAmount = monthLogs.reduce((s, l) => {
+            const emp = employees.find(e => e.id == l.employee_id);
+            const gross = parseFloat(l.hours || 0) * (emp ? parseFloat(emp.hourly_rate) : 0);
+            const deduction = (emp && emp.apply_ccss) ? (gross * 0.1067) : 0;
+            return s + (gross - deduction);
+        }, 0);
+
         const getWeekRange = (date) => {
             const d = new Date(date);
             const day = d.getDay();
@@ -272,29 +269,55 @@ const Views = {
             monday.setDate(d.getDate() + diffToMonday);
             const sunday = new Date(monday);
             sunday.setDate(monday.getDate() + 6);
-            const format = (dt) => Storage.getLocalDate(dt);
+            const format = (dt) => dt.toISOString().split('T')[0];
             return { start: format(monday), end: format(sunday) };
         };
 
         const weekRange = getWeekRange(now);
         const weekLogs = logs.filter(l => l.date >= weekRange.start && l.date <= weekRange.end);
-        const weekHours = weekLogs.reduce((s, l) => s + l.hours, 0);
+        const weekHours = weekLogs.reduce((s, l) => s + parseFloat(l.hours || 0), 0);
+        const weekAmount = weekLogs.reduce((s, l) => {
+            const emp = employees.find(e => e.id == l.employee_id);
+            const gross = parseFloat(l.hours || 0) * (emp ? parseFloat(emp.hourly_rate) : 0);
+            const deduction = (emp && emp.apply_ccss) ? (gross * 0.1067) : 0;
+            return s + (gross - deduction);
+        }, 0);
+
+        const lastWeekDate = new Date(now);
+        lastWeekDate.setDate(now.getDate() - 7);
+        const lastWeekRange = getWeekRange(lastWeekDate);
+        const lastWeekLogs = logs.filter(l => l.date >= lastWeekRange.start && l.date <= lastWeekRange.end);
+        const lastWeekHours = lastWeekLogs.reduce((s, l) => s + parseFloat(l.hours || 0), 0);
+        const lastWeekAmount = lastWeekLogs.reduce((s, l) => {
+            const emp = employees.find(e => e.id == l.employee_id);
+            const gross = parseFloat(l.hours || 0) * (emp ? parseFloat(emp.hourly_rate) : 0);
+            const deduction = (emp && emp.apply_ccss) ? (gross * 0.1067) : 0;
+            return s + (gross - deduction);
+        }, 0);
 
         return `
-            <div class="stats-grid">
+            <div class="stats-grid" style="grid-template-columns: repeat(4, 1fr) !important;">
                 <div class="stat-card">
                     <h3>Empleados Activos</h3>
                     <div class="value">${activeEmployees.length}</div>
                     <div class="trend up">👥 Personal Actual</div>
                 </div>
                 <div class="stat-card">
+                    <h3>Semana Pasada</h3>
+                    <div class="value">${lastWeekHours.toFixed(1)}h</div>
+                    <div style="font-size: 1.2rem; margin-top: 0.5rem; color: var(--success)">₡${Math.round(lastWeekAmount).toLocaleString()}</div>
+                    <div class="trend" style="font-size: 0.75rem">${lastWeekRange.start} al ${lastWeekRange.end}</div>
+                </div>
+                <div class="stat-card">
                     <h3>Semana Actual</h3>
                     <div class="value">${weekHours.toFixed(1)}h</div>
+                    <div style="font-size: 1.2rem; margin-top: 0.5rem; color: var(--success)">₡${Math.round(weekAmount).toLocaleString()}</div>
                     <div class="trend" style="font-size: 0.75rem">${weekRange.start} al ${weekRange.end}</div>
                 </div>
                 <div class="stat-card">
-                    <h3>Mes Actual</h3>
+                    <h3>Acumulado del Mes</h3>
                     <div class="value">${monthHours.toFixed(1)}h</div>
+                    <div style="font-size: 1.2rem; margin-top: 0.5rem; color: var(--success)">₡${Math.round(monthAmount).toLocaleString()}</div>
                     <div class="trend">${now.toLocaleString('es-ES', { month: 'long' }).toUpperCase()}</div>
                 </div>
             </div>
@@ -310,8 +333,8 @@ const Views = {
         `;
     },
 
-    init_dashboard: () => {
-        const payments = Storage.get('payments');
+    init_dashboard: async () => {
+        const payments = await Storage.get('payments');
         const ctx = document.getElementById('salaryChart');
         if (!ctx) return;
 
@@ -325,41 +348,62 @@ const Views = {
             const monthLabel = d.toLocaleString('es-ES', { month: 'short' }).toUpperCase();
 
             const monthTotal = payments
-                .filter(p => p.date.startsWith(monthStr))
-                .reduce((s, p) => s + p.amount, 0);
+                .filter(p => p.date && p.date.startsWith(monthStr))
+                .reduce((s, p) => s + parseFloat(p.amount || 0), 0);
 
             months.push(monthLabel);
             data.push(monthTotal);
         }
 
-        if (window.Chart) {
-            new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: months,
-                    datasets: [{
-                        label: 'Salarios Pagados (₡)',
-                        data: data,
-                        backgroundColor: 'rgba(99, 102, 241, 0.4)',
-                        borderColor: '#6366f1',
-                        borderWidth: 2,
-                        borderRadius: 8,
-                        hoverBackgroundColor: '#6366f1'
-                    }]
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: months,
+                datasets: [{
+                    label: 'Salarios Pagados (₡)',
+                    data: data,
+                    backgroundColor: 'rgba(99, 102, 241, 0.4)',
+                    borderColor: '#6366f1',
+                    borderWidth: 2,
+                    borderRadius: 8,
+                    hoverBackgroundColor: '#6366f1'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: function (context) {
+                                return 'Total: ₡' + context.raw.toLocaleString();
+                            }
+                        }
+                    }
                 },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        y: { beginAtZero: true }
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        grid: { color: 'rgba(255,255,255,0.05)' },
+                        ticks: {
+                            color: '#94a3b8',
+                            callback: function (value) {
+                                return '₡' + value.toLocaleString();
+                            }
+                        }
+                    },
+                    x: {
+                        grid: { display: false },
+                        ticks: { color: '#94a3b8' }
                     }
                 }
-            });
-        }
+            }
+        });
     },
 
-    employees: () => {
-        const employees = Storage.get('employees');
+    employees: async () => {
+        const employees = await Storage.get('employees');
         const statusFilter = localStorage.getItem('gn_employee_status_filter') || 'Active';
 
         const filteredEmployees = employees.filter(emp => {
@@ -380,6 +424,7 @@ const Views = {
                             <option value="Inactive" ${statusFilter === 'Inactive' ? 'selected' : ''}>Inactivos</option>
                             <option value="All" ${statusFilter === 'All' ? 'selected' : ''}>Todos</option>
                         </select>
+                        <button class="btn" style="background: rgba(239,68,68,0.1); color: var(--danger)" id="deactivate-all-btn">🛑 Desactivar Todos</button>
                         <button class="btn btn-primary" id="add-employee-btn">+ Nuevo Empleado</button>
                     </div>
                 </div>
@@ -391,7 +436,7 @@ const Views = {
                                 <th>Cargo</th>
                                 <th>Pago x Hora</th>
                                 <th>Estado</th>
-                                <th>Inicio</th>
+                                <th>Inicio / Fin</th>
                                 <th>Acciones</th>
                             </tr>
                         </thead>
@@ -400,40 +445,58 @@ const Views = {
                                 <tr>
                                     <td style="font-weight:600; cursor:pointer; color:var(--primary)" onclick="App.switchView('employeeDetail', '${emp.id}')">${emp.name}</td>
                                     <td>${emp.position}</td>
-                                    <td>₡${emp.hourlyRate}</td>
-                                    <td><span class="tag ${emp.status === 'Active' ? 'tag-active' : 'tag-inactive'}">${emp.status}</span></td>
-                                    <td>${emp.startDate}</td>
+                                    <td>₡${parseFloat(emp.hourly_rate).toLocaleString()}</td>
+                                    <td>
+                                        <span class="tag ${emp.status === 'Active' ? 'tag-active' : 'tag-inactive'}">
+                                            ${emp.status === 'Active' ? 'Activo' : 'Inactivo'}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <div style="font-size: 0.85rem">📅 ${emp.start_date ? emp.start_date.split('T')[0] : '—'}</div>
+                                        ${emp.end_date ? `<div style="font-size: 0.85rem; color: var(--danger)">🚪 ${emp.end_date.split('T')[0]}</div>` : ''}
+                                    </td>
                                     <td style="display: flex; gap: 8px;">
                                         <button class="btn" style="padding: 4px 8px; background: rgba(99,102,241,0.1)" onclick="window.editEmployee('${emp.id}')">✏️</button>
+                                        <button class="btn" style="padding: 4px 8px; background: rgba(99,102,241,0.1)" onclick="App.switchView('employeeDetail', '${emp.id}')">👁️</button>
                                         <button class="btn" style="padding: 4px 8px; background: rgba(239,68,68,0.1)" onclick="window.deleteEmployee('${emp.id}')">🗑️</button>
                                     </td>
                                 </tr>
                             `).join('')}
+                            ${filteredEmployees.length === 0 ? '<tr><td colspan="6" style="text-align:center">No hay empleados con este estado</td></tr>' : ''}
                         </tbody>
                     </table>
                 </div>
             </div>
 
-            <dialog id="employee-modal" class="card-container" style="margin: auto; border: 1px solid var(--primary); padding: 2rem; width: 450px; background: var(--bg-card); color: white;">
-                <h3 id="modal-title">Registrar Empleado</h3>
-                <form id="employee-form" style="display: flex; flex-direction: column; gap: 15px; margin-top: 1rem;">
+            <dialog id="employee-modal" class="card-container" style="margin: auto; border: 1px solid var(--primary); padding: 2rem; width: 450px; max-height: 90vh; overflow-y: auto; background: var(--bg-card); color: white;">
+                <h3 id="modal-title" style="margin-bottom: 1.5rem">Registrar Empleado</h3>
+                <form id="employee-form" style="display: flex; flex-direction: column; gap: 15px;">
                     <input type="hidden" name="id" id="edit-emp-id">
                     <div class="form-group">
                         <label>Nombre Completo</label>
-                        <input type="text" name="name" required>
+                        <input type="text" name="name" placeholder="Ej: Juan Pérez" required>
                     </div>
                     <div class="form-group">
-                        <label>PIN (4 dígitos)</label>
-                        <input type="text" name="pin" maxlength="4">
+                        <label>Número de Cédula</label>
+                        <input type="text" name="cedula" placeholder="Ej: 1-2345-6789">
+                    </div>
+                    <div class="form-group">
+                        <label>Teléfono (WhatsApp)</label>
+                        <input type="text" name="phone" placeholder="Ej: 50688888888">
+                    </div>
+                    <div class="form-group" style="background: rgba(99,102,241,0.05); padding: 1rem; border-radius: 8px; border: 1px solid rgba(99,102,241,0.3);">
+                        <label style="color: var(--primary); font-weight: 600;">🔐 PIN de Acceso al Portal (4 dígitos)</label>
+                        <input type="text" name="pin" placeholder="Ej: 1234" maxlength="4" pattern="[0-9]*" inputmode="numeric" style="margin-top: 0.5rem;">
+                        <small style="color: var(--text-muted); font-size: 0.75rem; display: block; margin-top: 0.5rem;">Este PIN permite al empleado registrar sus horas en el portal de auto-servicio</small>
                     </div>
                     <div class="grid-2" style="gap: 1rem">
                         <div class="form-group">
                             <label>Cargo</label>
-                            <input type="text" name="position" required>
+                            <input type="text" name="position" placeholder="Ej: Chef" required>
                         </div>
                         <div class="form-group">
-                            <label>Pago x Hora</label>
-                            <input type="number" name="hourlyRate" required>
+                            <label>Pago por Hora (₡)</label>
+                            <input type="number" name="hourlyRate" placeholder="3500" required>
                         </div>
                     </div>
                     <div class="grid-2" style="gap: 1rem">
@@ -449,120 +512,318 @@ const Views = {
                             <input type="date" name="startDate" required>
                         </div>
                     </div>
-                    <div class="form-group" style="display: flex; align-items: center; gap: 10px;">
-                        <input type="checkbox" name="applyCCSS" id="apply-ccss">
-                        <label for="apply-ccss">Aplicar CCSS (10.67%)</label>
+                    <div class="form-group">
+                        <label>Fecha Terminación (Opcional)</label>
+                        <input type="date" name="endDate">
+                    </div>
+                    <div class="form-group" style="display: flex; align-items: center; gap: 10px; background: rgba(99,102,241,0.05); padding: 10px; border-radius: 8px; border: 1px solid rgba(99,102,241,0.2);">
+                        <input type="checkbox" name="applyCCSS" id="apply-ccss-check" style="width: 20px; height: 20px; cursor: pointer;">
+                        <label for="apply-ccss-check" style="margin: 0; cursor: pointer; font-weight: 600;">Aplicar Rebajo CCSS (10.67%)</label>
                     </div>
                     <div style="display: flex; gap: 10px; margin-top: 20px;">
                         <button type="submit" class="btn btn-primary" style="flex:1">Guardar</button>
-                        <button type="button" class="btn" onclick="document.getElementById('employee-modal').close()" style="flex:1">Cancelar</button>
+                        <button type="button" class="btn" style="flex:1; background: rgba(255,255,255,0.1)" onclick="document.getElementById('employee-modal').close()">Cancelar</button>
                     </div>
                 </form>
             </dialog>
         `;
     },
 
-    init_employees: () => {
+    init_employees: async () => {
         const modal = document.getElementById('employee-modal');
         const btn = document.getElementById('add-employee-btn');
         const form = document.getElementById('employee-form');
-        const filter = document.getElementById('employee-status-filter');
+        const statusFilter = document.getElementById('employee-status-filter');
+        const modalTitle = document.getElementById('modal-title');
+        const editIdInput = document.getElementById('edit-emp-id');
 
-        if (filter) {
-            filter.onchange = () => {
-                localStorage.setItem('gn_employee_status_filter', filter.value);
+        if (statusFilter) {
+            statusFilter.onchange = () => {
+                localStorage.setItem('gn_employee_status_filter', statusFilter.value);
+                App.renderView('employees');
+            };
+        }
+
+        const deactivateBtn = document.getElementById('deactivate-all-btn');
+        if (deactivateBtn) {
+            deactivateBtn.onclick = async () => {
+                if (!confirm('¿Está seguro de que desea poner a TODOS los empleados como Inactivos?')) return;
+                const employees = await Storage.get('employees');
+                const today = Storage.getLocalDate();
+                for (const emp of employees) {
+                    await Storage.update('employees', emp.id, {
+                        ...emp,
+                        hourlyRate: emp.hourly_rate, // Map back to API field names if necessary
+                        startDate: emp.start_date,
+                        applyCCSS: emp.apply_ccss,
+                        status: 'Inactive',
+                        endDate: emp.end_date || today
+                    });
+                }
                 App.renderView('employees');
             };
         }
 
         btn.onclick = () => {
             form.reset();
-            document.getElementById('edit-emp-id').value = '';
-            document.getElementById('modal-title').textContent = 'Registrar Empleado';
+            editIdInput.value = '';
+            modalTitle.textContent = 'Registrar Empleado';
             modal.showModal();
         };
 
-        window.editEmployee = (id) => {
-            const emp = Storage.get('employees').find(e => e.id == id);
+        window.editEmployee = async (id) => {
+            const employees = await Storage.get('employees');
+            const emp = employees.find(e => e.id == id);
             if (!emp) return;
-            document.getElementById('modal-title').textContent = 'Editar Empleado';
-            document.getElementById('edit-emp-id').value = emp.id;
+
+            modalTitle.textContent = 'Editar Empleado';
+            editIdInput.value = emp.id;
             form.name.value = emp.name;
+            form.cedula.value = emp.cedula || '';
+            form.phone.value = emp.phone || '';
             form.pin.value = emp.pin || '';
             form.position.value = emp.position;
-            form.hourlyRate.value = emp.hourlyRate;
+            form.hourlyRate.value = emp.hourly_rate;
             form.status.value = emp.status;
-            form.startDate.value = emp.startDate;
-            form.applyCCSS.checked = !!emp.applyCCSS;
+            form.startDate.value = emp.start_date ? emp.start_date.split('T')[0] : '';
+            form.endDate.value = emp.end_date ? emp.end_date.split('T')[0] : '';
+            form.applyCCSS.checked = !!emp.apply_ccss;
+
             modal.showModal();
+        };
+
+        window.deleteEmployee = async (id) => {
+            if (!confirm('¿Realmente desea eliminar este empleado?')) return;
+            if (await Storage.delete('employees', id)) {
+                App.renderView('employees');
+            }
         };
 
         form.onsubmit = async (e) => {
             e.preventDefault();
-            const id = document.getElementById('edit-emp-id').value;
-            const data = {
-                name: form.name.value,
-                pin: form.pin.value,
-                position: form.position.value,
-                hourlyRate: parseFloat(form.hourlyRate.value),
-                status: form.status.value,
-                startDate: form.startDate.value,
-                applyCCSS: form.applyCCSS.checked
+            const formData = new FormData(form);
+            const id = editIdInput.value;
+            const empData = {
+                name: formData.get('name'),
+                cedula: formData.get('cedula'),
+                phone: formData.get('phone'),
+                pin: formData.get('pin'),
+                position: formData.get('position'),
+                hourlyRate: parseFloat(formData.get('hourlyRate')),
+                startDate: formData.get('startDate'),
+                endDate: formData.get('endDate') || null,
+                status: formData.get('status'),
+                applyCCSS: form.applyCCSS.checked,
+                salaryHistory: [] // To be handled by detail edit
             };
 
             if (id) {
-                await Storage.update('employees', id, data);
+                // Keep the old salary history if updating
+                const employees = await Storage.get('employees');
+                const oldEmp = employees.find(e => e.id == id);
+                if (oldEmp) empData.salaryHistory = oldEmp.salary_history || [];
+                await Storage.update('employees', id, empData);
             } else {
-                await Storage.add('employees', data);
+                await Storage.add('employees', empData);
             }
+
             modal.close();
             App.renderView('employees');
         };
     },
 
-    employeeDetail: (id) => {
-        const emp = Storage.get('employees').find(e => String(e.id) === String(id));
-        if (!emp) return `<p>Empleado no encontrado</p>`;
+    employeeDetail: async (id) => {
+        const employees = await Storage.get('employees');
+        const emp = employees.find(e => e.id == id);
+        if (!emp) return 'Empleado no encontrado';
 
-        const logs = Storage.get('logs').filter(l => String(l.employeeId) === String(id));
-        const totalHours = logs.reduce((s, l) => s + l.hours, 0);
+        const rawLogs = await Storage.get('logs');
+        const logs = rawLogs.filter(l => l.employee_id == id);
+
+        const payments = await Storage.get('payments');
+        const empPayments = payments.filter(p => p.employee_id == id);
+
+        const history = emp.salary_history || [{ date: emp.start_date ? emp.start_date.split('T')[0] : '', rate: emp.hourly_rate, reason: 'Salario Inicial' }];
 
         return `
-            <div style="margin-bottom: 2rem;">
-                <button class="btn" onclick="App.switchView('employees')">← Volver</button>
-            </div>
-            <div class="grid-2">
-                <div class="card-container">
-                    <h3>Perfil: ${emp.name}</h3>
-                    <p><strong>Cargo:</strong> ${emp.position}</p>
-                    <p><strong>Pago x Hora:</strong> ₡${emp.hourlyRate}</p>
-                    <p><strong>Estado:</strong> ${emp.status}</p>
-                    <p><strong>Inicio:</strong> ${emp.startDate}</p>
+            <div class="card-container">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 2rem">
+                    <div>
+                        <h2 style="margin:0; color: var(--primary)">${emp.name}</h2>
+                        <p style="color: var(--text-muted)">${emp.position} | ₡${parseFloat(emp.hourly_rate).toLocaleString()} por hora</p>
+                    </div>
+                    <div style="display: flex; gap: 10px">
+                        <button class="btn" style="background: rgba(99,102,241,0.1)" onclick="App.switchView('employees')">⬅️ Volver</button>
+                        <button class="btn btn-primary" id="edit-detail-btn">✏️ Editar Perfil</button>
+                    </div>
                 </div>
-                <div class="stat-card">
-                    <h3>Horas Totales (Histórico)</h3>
-                    <div class="value">${totalHours.toFixed(2)}h</div>
+
+                <div class="stats-grid" style="margin-bottom: 2rem">
+                    <div class="stat-card">
+                        <h3>Total Horas</h3>
+                        <div class="value">${logs.reduce((s, l) => s + parseFloat(l.hours || 0), 0).toFixed(1)}h</div>
+                    </div>
+                    <div class="stat-card" style="border-left: 4px solid var(--success)">
+                        <h3>Total Pagado</h3>
+                        <div class="value" style="color: var(--success)">₡${empPayments.reduce((s, p) => s + parseFloat(p.amount || 0), 0).toLocaleString()}</div>
+                    </div>
+                </div>
+
+                <div class="grid-2">
+                    <div class="card-container" style="background: rgba(255,255,255,0.02)">
+                        <h3>Historial de Cambios Salariales</h3>
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Fecha</th>
+                                        <th>Tarifa</th>
+                                        <th>Motivo</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${history.map(h => `
+                                        <tr>
+                                            <td>${h.date}</td>
+                                            <td>₡${parseFloat(h.rate).toLocaleString()}</td>
+                                            <td style="font-size: 0.85rem">${h.reason}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="card-container" style="background: rgba(255,255,255,0.02)">
+                        <h3>Proyección de Rebajos (Base Actual)</h3>
+                        <div style="padding: 1rem; background: var(--bg-body); border-radius: 8px;">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem">
+                                <span>Aplicar CCSS:</span>
+                                <b>${emp.apply_ccss ? 'SÍ (10.67%)' : 'NO'}</b>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem">
+                                <span>Salario Bruto (Ej. 48h):</span>
+                                <span>₡${(48 * emp.hourly_rate).toLocaleString()}</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; font-weight: 600; color: var(--danger)">
+                                <span>Deducción estimada:</span>
+                                <span>₡${emp.apply_ccss ? (48 * emp.hourly_rate * 0.1067).toLocaleString() : '0'}</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
-            <div class="card-container" style="margin-top: 2rem">
-                <h3>Últimos Registros de Horas</h3>
+
+            <dialog id="edit-detail-modal" class="card-container" style="margin: auto; border: 1px solid var(--primary); padding: 2rem; width: 400px; background: var(--bg-card); color: white;">
+                <h3>Actualizar Datos de ${emp.name}</h3>
+                <form id="edit-detail-form" style="display: flex; flex-direction: column; gap: 15px; margin-top: 1rem">
+                    <div class="form-group">
+                        <label>Nuevo Pago por Hora (₡)</label>
+                        <input type="number" name="newRate" value="${emp.hourly_rate}" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Motivo del Cambio</label>
+                        <input type="text" name="reason" placeholder="Ej: Ajuste anual, Ascenso...">
+                    </div>
+                    <div class="form-group" style="display: flex; align-items: center; gap: 10px; margin-top: 10px">
+                        <input type="checkbox" name="applyCCSS" id="check-ccss-detail" ${emp.apply_ccss ? 'checked' : ''} style="width: 20px; height: 20px">
+                        <label for="check-ccss-detail" style="margin:0">Aplicar Rebajo CCSS</label>
+                    </div>
+                    <div style="display: flex; gap: 10px; margin-top: 20px;">
+                        <button type="submit" class="btn btn-primary" style="flex:1">Actualizar</button>
+                        <button type="button" class="btn" style="flex:1" onclick="document.getElementById('edit-detail-modal').close()">Cerrar</button>
+                    </div>
+                </form>
+            </dialog>
+        `;
+    },
+
+    init_employeeDetail: async (id) => {
+        const modal = document.getElementById('edit-detail-modal');
+        const btn = document.getElementById('edit-detail-btn');
+        const form = document.getElementById('edit-detail-form');
+
+        if (btn) btn.onclick = () => modal.showModal();
+
+        if (form) {
+            form.onsubmit = async (e) => {
+                e.preventDefault();
+                const employees = await Storage.get('employees');
+                const emp = employees.find(e => e.id == id);
+                const newRate = parseFloat(form.newRate.value);
+                const reason = form.reason.value || 'Actualización de perfil';
+                const applyCCSS = form.applyCCSS.checked;
+
+                const history = emp.salary_history || [];
+                // If rate changed, add to history
+                if (newRate !== parseFloat(emp.hourly_rate)) {
+                    history.push({
+                        date: Storage.getLocalDate(),
+                        rate: newRate,
+                        reason: reason
+                    });
+                }
+
+                await Storage.update('employees', id, {
+                    ...emp,
+                    hourlyRate: newRate,
+                    applyCCSS: applyCCSS,
+                    salaryHistory: history,
+                    startDate: emp.start_date, // Keep originals
+                    endDate: emp.end_date,
+                    status: emp.status
+                });
+
+                modal.close();
+                App.renderView('employeeDetail', id);
+            };
+        }
+    },
+
+    calculator: async () => {
+        const employees = await Storage.get('employees');
+        const activeEmployees = employees.filter(e => e.status === 'Active');
+
+        return `
+            <div class="card-container">
+                <div class="table-header">
+                    <h3>Registrar Horas de la Semana</h3>
+                    <div style="display: flex; gap: 10px">
+                        <button class="btn" onclick="window.clearCalculator()">Limpiar</button>
+                        <button class="btn btn-primary" id="process-all-logs-btn">🚀 Procesar Todo</button>
+                    </div>
+                </div>
+                <p style="color: var(--text-muted); margin-bottom: 1rem">Ingrese las horas diarias para cada colaborador. Use el formato decimal (ej: 8.5)</p>
+                
                 <div class="table-container">
-                    <table>
+                    <table id="calculator-table">
                         <thead>
                             <tr>
-                                <th>Fecha</th>
-                                <th>Entrada</th>
-                                <th>Salida</th>
-                                <th>Horas</th>
+                                <th>Colaborador</th>
+                                <th>Lun</th>
+                                <th>Mar</th>
+                                <th>Mié</th>
+                                <th>Jue</th>
+                                <th>Vie</th>
+                                <th>Sáb</th>
+                                <th>Dom</th>
+                                <th>Total</th>
+                                <th>Monto</th>
                             </tr>
                         </thead>
                         <tbody>
-                            ${logs.slice(-10).reverse().map(l => `
-                                <tr>
-                                    <td>${l.date}</td>
-                                    <td>${l.time_in || '--:--'}</td>
-                                    <td>${l.time_out || '--:--'}</td>
-                                    <td>${l.hours}h</td>
+                            ${activeEmployees.map(emp => `
+                                <tr data-emp-id="${emp.id}" data-rate="${emp.hourly_rate}" data-ccss="${emp.apply_ccss ? '1' : '0'}">
+                                    <td style="font-weight: 600">${emp.name}</td>
+                                    <td><input type="number" step="0.5" class="hour-input" data-day="0" placeholder="0"></td>
+                                    <td><input type="number" step="0.5" class="hour-input" data-day="1" placeholder="0"></td>
+                                    <td><input type="number" step="0.5" class="hour-input" data-day="2" placeholder="0"></td>
+                                    <td><input type="number" step="0.5" class="hour-input" data-day="3" placeholder="0"></td>
+                                    <td><input type="number" step="0.5" class="hour-input" data-day="4" placeholder="0"></td>
+                                    <td><input type="number" step="0.5" class="hour-input" data-day="5" placeholder="0"></td>
+                                    <td><input type="number" step="0.5" class="hour-input" data-day="6" placeholder="0"></td>
+                                    <td class="row-total">0.0</td>
+                                    <td class="row-amount">₡0</td>
                                 </tr>
                             `).join('')}
                         </tbody>
@@ -572,169 +833,174 @@ const Views = {
         `;
     },
 
-    calculator: () => {
-        const employees = Storage.get('employees').filter(e => e.status === 'Active');
-        return `
-            <div class="card-container">
-                <h3>Calculadora de Pago</h3>
-                <div class="form-group" style="max-width: 400px; margin: 1rem 0;">
-                    <label>Empleado</label>
-                    <select id="calc-employee-id">
-                        <option value="">Seleccione...</option>
-                        ${employees.map(e => `<option value="${e.id}">${e.name}</option>`).join('')}
-                    </select>
-                </div>
-                <div class="table-container">
-                    <table id="calc-table">
-                        <thead>
-                            <tr>
-                                <th>Fecha</th>
-                                <th>Entrada</th>
-                                <th>Salida</th>
-                                <th>Horas</th>
-                                <th>Acción</th>
-                            </tr>
-                        </thead>
-                        <tbody id="calc-tbody"></tbody>
-                    </table>
-                </div>
-                <div style="margin-top: 1rem; display: flex; gap: 10px;">
-                    <button class="btn" id="calc-add-row">+ Añadir Día</button>
-                    <button class="btn btn-primary" id="calc-save-logs" disabled>💾 Guardar Horas</button>
-                </div>
-                <div id="calc-summary" style="margin-top: 2rem; display: none; padding: 1rem; border: 1px solid var(--primary); border-radius: 10px;">
-                    <p>Total Horas: <span id="calc-total-hours">0h</span></p>
-                    <p>Monto: <span id="calc-total-pay">₡0</span></p>
-                </div>
-            </div>
-        `;
-    },
+    init_calculator: async () => {
+        const table = document.getElementById('calculator-table');
+        const processBtn = document.getElementById('process-all-logs-btn');
 
-    init_calculator: () => {
-        const tbody = document.getElementById('calc-tbody');
-        const empSelect = document.getElementById('calc-employee-id');
-        const saveBtn = document.getElementById('calc-save-logs');
+        const calculateRow = (row) => {
+            const inputs = row.querySelectorAll('.hour-input');
+            const totalCell = row.querySelector('.row-total');
+            const amountCell = row.querySelector('.row-amount');
+            const rate = parseFloat(row.dataset.rate);
+            const applyCCSS = row.dataset.ccss === '1';
 
-        const updateTotals = () => {
-            const rows = tbody.querySelectorAll('tr');
-            let totalH = 0;
-            const emp = Storage.get('employees').find(e => e.id == empSelect.value);
+            let totalHours = 0;
+            inputs.forEach(input => totalHours += parseFloat(input.value || 0));
 
-            rows.forEach(tr => {
-                const clockIn = tr.querySelector('.in').value;
-                const clockOut = tr.querySelector('.out').value;
-                if (clockIn && clockOut) {
-                    const diff = (new Date(`2000-01-01T${clockOut}`) - new Date(`2000-01-01T${clockIn}`)) / 36e5;
-                    const hours = diff < 0 ? diff + 24 : diff;
-                    tr.querySelector('.sub').textContent = hours.toFixed(2) + 'h';
-                    totalH += hours;
-                }
-            });
-            document.getElementById('calc-total-hours').textContent = totalH.toFixed(2) + 'h';
-            document.getElementById('calc-total-pay').textContent = '₡' + Math.round(totalH * (emp ? emp.hourlyRate : 0)).toLocaleString();
-            document.getElementById('calc-summary').style.display = totalH > 0 ? 'block' : 'none';
-            saveBtn.disabled = !emp || totalH <= 0;
+            const gross = totalHours * rate;
+            const deduction = applyCCSS ? (gross * 0.1067) : 0;
+            const net = gross - deduction;
+
+            totalCell.textContent = totalHours.toFixed(1);
+            amountCell.textContent = '₡' + Math.round(net).toLocaleString();
         };
 
-        const createRow = () => {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td><input type="date" class="date" value="${Storage.getLocalDate()}"></td>
-                <td><input type="time" class="in" value="08:00"></td>
-                <td><input type="time" class="out" value="17:00"></td>
-                <td class="sub">0h</td>
-                <td><button class="btn" onclick="this.closest('tr').remove(); updateTotals();">✕</button></td>
-            `;
-            tbody.appendChild(tr);
-            tr.querySelectorAll('input').forEach(i => i.onchange = updateTotals);
-            updateTotals();
-        };
+        table.querySelectorAll('.hour-input').forEach(input => {
+            input.oninput = () => calculateRow(input.closest('tr'));
+        });
 
-        document.getElementById('calc-add-row').onclick = createRow;
-        empSelect.onchange = updateTotals;
-        window.updateTotals = updateTotals;
+        processBtn.onclick = async () => {
+            if (!confirm('¿Desea guardar todos los registros de horas ingresados?')) return;
 
-        saveBtn.onclick = async () => {
-            const rows = tbody.querySelectorAll('tr');
-            for (const tr of rows) {
-                const h = parseFloat(tr.querySelector('.sub').textContent);
-                if (h > 0) {
-                    await Storage.add('logs', {
-                        employeeId: empSelect.value,
-                        date: tr.querySelector('.date').value,
-                        timeIn: tr.querySelector('.in').value,
-                        timeOut: tr.querySelector('.out').value,
-                        hours: h
-                    });
+            const rows = table.querySelectorAll('tbody tr');
+            const today = new Date();
+            const getDayDate = (offset) => {
+                const d = new Date(today);
+                const currentDay = d.getDay(); // 0(Dom) - 6(Sab)
+                const diff = (offset + 1) - (currentDay === 0 ? 7 : currentDay);
+                d.setDate(d.getDate() + diff);
+                return Storage.getLocalDate(d);
+            };
+
+            let count = 0;
+            for (const row of rows) {
+                const empId = row.dataset.empId;
+                const inputs = row.querySelectorAll('.hour-input');
+
+                for (let i = 0; i < 7; i++) {
+                    const val = parseFloat(inputs[i].value || 0);
+                    if (val > 0) {
+                        await Storage.add('logs', {
+                            employeeId: parseInt(empId),
+                            date: getDayDate(i),
+                            hours: val,
+                            notes: 'Ingreso manual calculadora'
+                        });
+                        count++;
+                    }
                 }
             }
-            alert('Horas guardadas');
+
+            alert(`Se guardaron ${count} registros exitosamente.`);
             App.switchView('payroll');
+        };
+
+        window.clearCalculator = () => {
+            table.querySelectorAll('input').forEach(i => i.value = '');
+            table.querySelectorAll('.row-total').forEach(t => t.textContent = '0.0');
+            table.querySelectorAll('.row-amount').forEach(a => a.textContent = '₡0');
         };
     },
 
-    payroll: () => {
-        const employees = Storage.get('employees');
-        const logs = Storage.get('logs');
-        const payments = Storage.get('payments');
+    payroll: async () => {
+        const employees = await Storage.get('employees');
+        const logs = await Storage.get('logs');
+        const payments = await Storage.get('payments');
+
+        const pendingSummary = [];
+        employees.filter(e => e.status === 'Active').forEach(emp => {
+            const empLogs = logs.filter(l => l.employee_id == emp.id && !l.is_paid);
+            if (empLogs.length > 0) {
+                const totalHours = empLogs.reduce((s, l) => s + parseFloat(l.hours), 0);
+                const gross = totalHours * parseFloat(emp.hourly_rate);
+                const deduction = emp.apply_ccss ? (gross * 0.1067) : 0;
+                const net = gross - deduction;
+
+                pendingSummary.push({
+                    id: emp.id,
+                    name: emp.name,
+                    hours: totalHours,
+                    net: net,
+                    deduction: deduction,
+                    logCount: empLogs.length
+                });
+            }
+        });
 
         return `
             <div class="card-container">
-                <h3>Cálculo de Planilla Pendiente</h3>
+                <div class="table-header">
+                    <h3>Resumen de Pagos Pendientes</h3>
+                    <div style="display: flex; gap: 10px">
+                         <button class="btn" style="background: rgba(239,68,68,0.1); color: var(--danger)" onclick="window.clearAllLogs()">🗑️ Limpiar Todo</button>
+                         <button class="btn btn-primary" id="process-payroll-btn">💳 Pagar Seleccionados</button>
+                    </div>
+                </div>
                 <div class="table-container">
                     <table>
                         <thead>
                             <tr>
+                                <th style="width: 40px"><input type="checkbox" id="select-all-pending" checked></th>
                                 <th>Empleado</th>
-                                <th>Horas Pendientes</th>
-                                <th>Monto Bruto</th>
-                                <th>Neto (Est.)</th>
+                                <th>Horas Acum.</th>
+                                <th>CCSS (Est.)</th>
+                                <th>Monto Neto</th>
                                 <th>Acción</th>
                             </tr>
                         </thead>
                         <tbody>
-                            ${employees.filter(e => e.status === 'Active').map(emp => {
-            const totalHrs = logs.filter(l => String(l.employeeId) === String(emp.id)).reduce((s, l) => s + l.hours, 0);
-            const paidHrs = payments.filter(p => String(p.employeeId) === String(emp.id)).reduce((s, p) => s + p.hours, 0);
-            const pending = Math.max(0, totalHrs - paidHrs);
-            if (pending <= 0) return '';
-            const gross = pending * emp.hourlyRate;
-            const net = emp.applyCCSS ? gross * 0.8933 : gross;
-            return `
-                                    <tr>
-                                        <td>${emp.name}</td>
-                                        <td>${pending.toFixed(2)}h</td>
-                                        <td>₡${Math.round(gross).toLocaleString()}</td>
-                                        <td style="color:var(--success)">₡${Math.round(net).toLocaleString()}</td>
-                                        <td><button class="btn btn-primary" onclick="window.processPayment('${emp.id}', ${pending}, ${gross})">Pagar</button></td>
-                                    </tr>
-                                `;
-        }).join('')}
+                            ${pendingSummary.map(ps => `
+                                <tr>
+                                    <td><input type="checkbox" class="pending-check" data-id="${ps.id}" data-hours="${ps.hours}" data-net="${ps.net}" data-deduction="${ps.deduction}" checked></td>
+                                    <td style="font-weight: 600">${ps.name}</td>
+                                    <td>${ps.hours.toFixed(1)}h</td>
+                                    <td style="color: var(--danger)">₡${Math.round(ps.deduction).toLocaleString()}</td>
+                                    <td style="color: var(--success); font-weight: 600;">₡${Math.round(ps.net).toLocaleString()}</td>
+                                    <td><button class="btn" onclick="window.clearEmpLogs(${ps.id})" style="padding: 4px 8px; font-size: 0.8rem">Reasentir Horas</button></td>
+                                </tr>
+                            `).join('')}
+                            ${pendingSummary.length === 0 ? '<tr><td colspan="6" style="text-align:center">No hay horas pendientes de pago</td></tr>' : ''}
                         </tbody>
                     </table>
                 </div>
             </div>
+
             <div class="card-container" style="margin-top: 2rem">
-                <h3>Historial de Pagos</h3>
+                <div class="table-header">
+                    <h3>Historial de Pagos</h3>
+                    <div style="display: flex; gap: 10px">
+                        <button class="btn" style="background: rgba(16,185,129,0.1); color: var(--success)" onclick="window.exportPayments()">📥 Excel</button>
+                        <button class="btn" style="background: rgba(239,68,68,0.1); color: var(--danger)" id="delete-selected-payments">🗑️ Eliminar</button>
+                    </div>
+                </div>
                 <div class="table-container">
                     <table>
                         <thead>
                             <tr>
+                                <th style="width: 40px"><input type="checkbox" id="select-all-payments"></th>
                                 <th>Fecha</th>
                                 <th>Empleado</th>
                                 <th>Horas</th>
-                                <th>Monto</th>
+                                <th>Total Pagado</th>
+                                <th>Importado</th>
+                                <th>Acciones</th>
                             </tr>
                         </thead>
                         <tbody>
-                            ${payments.slice().reverse().map(p => {
-            const emp = employees.find(e => String(e.id) === String(p.employeeId));
+                            ${payments.sort((a, b) => new Date(b.date) - new Date(a.date)).map(p => {
+            const emp = employees.find(e => e.id == p.employee_id);
             return `
                                     <tr>
-                                        <td>${p.date}</td>
-                                        <td>${emp ? emp.name : 'Unknown'}</td>
-                                        <td>${p.hours}h</td>
-                                        <td>₡${p.amount.toLocaleString()}</td>
+                                        <td><input type="checkbox" class="payment-check" data-id="${p.id}"></td>
+                                        <td>${p.date ? p.date.split('T')[0] : '—'}</td>
+                                        <td style="font-weight: 600">${emp ? emp.name : 'Desconocido'}</td>
+                                        <td>${parseFloat(p.hours || 0).toFixed(1)}h</td>
+                                        <td style="color: var(--success); font-weight: 700;">₡${Math.round(p.amount).toLocaleString()}</td>
+                                        <td>${p.is_imported ? '✅' : '❌'}</td>
+                                        <td style="display: flex; gap: 5px">
+                                            <button class="btn" style="padding: 5px 10px" onclick="window.shareWhatsApp('${p.id}')">📲</button>
+                                            <button class="btn" style="padding: 5px 10px; background: rgba(239,68,68,0.1)" onclick="window.deletePayment('${p.id}')">🗑️</button>
+                                        </td>
                                     </tr>
                                 `;
         }).join('')}
@@ -745,50 +1011,373 @@ const Views = {
         `;
     },
 
-    benefits: () => {
-        return `<div class="card-container"><h3>Prestaciones Legales</h3><p>Módulo próximamente habilitado con cálculos de Aguinaldo y Vacaciones.</p></div>`;
+    init_payroll: async () => {
+        const processBtn = document.getElementById('process-payroll-btn');
+        const selectAllPending = document.getElementById('select-all-pending');
+        const selectAllPayments = document.getElementById('select-all-payments');
+
+        if (selectAllPending) {
+            selectAllPending.onclick = () => {
+                document.querySelectorAll('.pending-check').forEach(c => c.checked = selectAllPending.checked);
+            };
+        }
+
+        if (selectAllPayments) {
+            selectAllPayments.onclick = () => {
+                document.querySelectorAll('.payment-check').forEach(c => c.checked = selectAllPayments.checked);
+            };
+        }
+
+        processBtn.onclick = async () => {
+            const selected = document.querySelectorAll('.pending-check:checked');
+            if (selected.length === 0) return alert('Seleccione al menos un pago');
+
+            if (!confirm(`¿Procesar ${selected.length} pagos?`)) return;
+
+            for (const check of selected) {
+                const empId = check.dataset.id;
+                const hours = parseFloat(check.dataset.hours);
+                const net = parseFloat(check.dataset.net);
+                const deduction = parseFloat(check.dataset.deduction);
+
+                await Storage.add('payments', {
+                    employeeId: parseInt(empId),
+                    date: Storage.getLocalDate(),
+                    amount: net,
+                    hours: hours,
+                    deductionCCSS: deduction,
+                    netAmount: net,
+                    isImported: false
+                });
+
+                await Storage.deleteLogsByEmployee(empId);
+            }
+
+            App.renderView('payroll');
+        };
+
+        window.clearEmpLogs = async (id) => {
+            if (!confirm('¿Borrar todas las horas pendientes de este empleado?')) return;
+            await Storage.deleteLogsByEmployee(id);
+            App.renderView('payroll');
+        };
+
+        window.clearAllLogs = async () => {
+            if (!confirm('Esta acción borrará TODAS las horas registradas de TODOS los empleados. ¿Proceder?')) return;
+            const employees = await Storage.get('employees');
+            for (const emp of employees) {
+                await Storage.deleteLogsByEmployee(emp.id);
+            }
+            App.renderView('payroll');
+        };
+
+        window.deletePayment = async (id) => {
+            if (!confirm('¿Eliminar este registro de pago?')) return;
+            await Storage.delete('payments', id);
+            App.renderView('payroll');
+        };
+
+        const deleteSelectedBtn = document.getElementById('delete-selected-payments');
+        if (deleteSelectedBtn) {
+            deleteSelectedBtn.onclick = async () => {
+                const selected = document.querySelectorAll('.payment-check:checked');
+                if (selected.length === 0) return;
+                if (!confirm(`¿Eliminar ${selected.length} pagos seleccionados?`)) return;
+
+                for (const check of selected) {
+                    await Storage.delete('payments', check.dataset.id);
+                }
+                App.renderView('payroll');
+            };
+        }
+
+        window.shareWhatsApp = async (id) => {
+            const payments = await Storage.get('payments');
+            const employees = await Storage.get('employees');
+            const p = payments.find(p => p.id == id);
+            const emp = employees.find(e => e.id == p.employee_id);
+
+            if (!p || !emp) return;
+
+            const text = `*COMPROBANTE DE PAGO - TOM TOM WOK*%0A%0A` +
+                `*Empleado:* ${emp.name}%0A` +
+                `*Fecha:* ${p.date.split('T')[0]}%0A` +
+                `*Horas Laboradas:* ${parseFloat(p.hours).toFixed(1)}h%0A` +
+                `*Monto Pagado:* ₡${Math.round(p.amount).toLocaleString()}%0A%0A` +
+                `¡Gracias por tu esfuerzo! 🍜`;
+
+            const phone = emp.phone ? emp.phone.replace(/\D/g, '') : '';
+            window.open(`https://wa.me/${phone}?text=${text}`, '_blank');
+        };
+
+        window.exportPayments = async () => {
+            const payments = await Storage.get('payments');
+            const employees = await Storage.get('employees');
+            const data = payments.map(p => {
+                const emp = employees.find(e => e.id == p.employee_id);
+                return {
+                    Fecha: p.date.split('T')[0],
+                    Empleado: emp ? emp.name : '—',
+                    Horas: p.hours,
+                    Monto: p.amount,
+                    CCSS: p.deduction_ccss,
+                    Importado: p.is_imported ? 'Sí' : 'No'
+                };
+            });
+
+            const ws = XLSX.utils.json_to_sheet(data);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Pagos");
+            XLSX.writeFile(wb, `Pagos_TTW_${Storage.getLocalDate()}.xlsx`);
+        };
     },
 
-    import: () => {
-        return `<div class="card-container"><h3>Importar desde Excel</h3><p>Use este módulo para cargar liquidaciones masivas.</p></div>`;
-    },
+    benefits: async () => `<div class="card-container"><h3>Prestaciones de Ley</h3><p>Cálculos de Aguinaldo y Cesantía próximamente.</p></div>`,
 
-    profile: () => {
-        const users = Storage.get('users');
+    import: async () => {
         return `
             <div class="card-container">
-                <h3>Gestión de Usuarios</h3>
+                <div class="table-header">
+                    <h3>Importar Liquidación desde Excel</h3>
+                    <div style="font-size: 0.8rem; color: var(--text-muted)">Compatible con formato de reloj marcador (.xlsx)</div>
+                </div>
+                
+                <div id="drop-zone" class="import-zone" style="border: 2px dashed var(--primary); padding: 3rem; text-align: center; border-radius: 12px; cursor: pointer; background: rgba(99,102,241,0.02)">
+                    <div style="font-size: 3rem; margin-bottom: 1rem">📊</div>
+                    <p>Arrastre su archivo Excel aquí o haga clic para seleccionar</p>
+                    <input type="file" id="excel-input" accept=".xlsx, .xls" style="display: none">
+                </div>
+
+                <div id="import-preview-container" style="margin-top: 2rem; display: none">
+                    <div class="table-header">
+                        <h4>Vista Previa de Importación</h4>
+                        <button class="btn btn-primary" id="execute-import-btn">Confirmar e Importar</button>
+                    </div>
+                    <div class="table-container">
+                        <table id="preview-table">
+                            <thead>
+                                <tr>
+                                    <th>Empleado</th>
+                                    <th>Horas</th>
+                                    <th>Subtotal</th>
+                                    <th>Estado</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        `;
+    },
+
+    init_import: () => {
+        const dropZone = document.getElementById('drop-zone');
+        const input = document.getElementById('excel-input');
+        const preview = document.getElementById('import-preview-container');
+        let importedData = [];
+
+        if (dropZone) dropZone.onclick = () => input.click();
+        if (dropZone) dropZone.ondragover = (e) => { e.preventDefault(); dropZone.style.borderColor = 'var(--success)'; };
+        if (dropZone) dropZone.ondragleave = () => dropZone.style.borderColor = 'var(--primary)';
+        if (dropZone) dropZone.ondrop = (e) => {
+            e.preventDefault();
+            const file = e.dataTransfer.files[0];
+            handleFile(file);
+        };
+
+        if (input) input.onchange = (e) => handleFile(e.target.files[0]);
+
+        const handleFile = (file) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                const json = XLSX.utils.sheet_to_json(firstSheet);
+                processImportableData(json);
+            };
+            reader.readAsArrayBuffer(file);
+        };
+
+        const processImportableData = async (json) => {
+            const employees = await Storage.get('employees');
+            const tbody = document.querySelector('#preview-table tbody');
+            if (!tbody) return;
+            tbody.innerHTML = '';
+            importedData = [];
+
+            json.forEach(row => {
+                const name = row['Nombre'] || row['Empleado'] || row['Nombre Empleado'];
+                const hours = row['Horas'] || row['Total Horas'] || row['Horas Trabajadas'];
+
+                if (name && hours) {
+                    const emp = employees.find(e => e.name.toLowerCase().includes(name.toString().toLowerCase()));
+                    const status = emp ? '✅ Vinculado' : '⚠️ No encontrado';
+                    const amount = emp ? (parseFloat(hours) * parseFloat(emp.hourly_rate)) : 0;
+
+                    importedData.push({
+                        name: name,
+                        hours: parseFloat(hours),
+                        employee_id: emp ? emp.id : null,
+                        amount: amount,
+                        ccss: emp ? emp.apply_ccss : false
+                    });
+
+                    tbody.innerHTML += `
+                        <tr>
+                            <td>${name}</td>
+                            <td>${hours}h</td>
+                            <td>₡${Math.round(amount).toLocaleString()}</td>
+                            <td style="color: ${emp ? 'var(--success)' : 'var(--danger)'}">${status}</td>
+                        </tr>
+                    `;
+                }
+            });
+
+            preview.style.display = 'block';
+            dropZone.style.display = 'none';
+        };
+
+        const executeBtn = document.getElementById('execute-import-btn');
+        if (executeBtn) {
+            executeBtn.onclick = async () => {
+                const valid = importedData.filter(d => d.employee_id);
+                if (valid.length === 0) return alert('No hay datos válidos para importar');
+
+                if (!confirm(`Se importarán ${valid.length} registros de pago directamente al historial. ¿Continuar?`)) return;
+
+                for (const item of valid) {
+                    const gross = item.amount;
+                    const deduction = item.ccss ? (gross * 0.1067) : 0;
+                    const net = gross - deduction;
+
+                    await Storage.add('payments', {
+                        employeeId: item.employee_id,
+                        date: Storage.getLocalDate(),
+                        amount: net,
+                        hours: item.hours,
+                        deductionCCSS: deduction,
+                        netAmount: net,
+                        isImported: true
+                    });
+                }
+
+                alert('Importación completada con éxito');
+                App.switchView('payroll');
+            };
+        }
+    },
+
+    profile: async () => {
+        const users = await Storage.get('users');
+        return `
+            <div class="card-container">
+                <div class="table-header">
+                    <h3>Gestión de Usuarios Admins</h3>
+                    <button class="btn btn-primary" onclick="window.openUserModal()">+ Nuevo Admin</button>
+                </div>
                 <div class="table-container">
                     <table>
-                        <thead><tr><th>Nombre</th><th>Usuario</th></tr></thead>
+                        <thead>
+                            <tr>
+                                <th>Nombre</th>
+                                <th>Usuario</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
                         <tbody>
-                            ${users.map(u => `<tr><td>${u.name}</td><td>${u.username}</td></tr>`).join('')}
+                            ${users.map(u => `
+                                <tr>
+                                    <td>${u.name}</td>
+                                    <td>${u.username}</td>
+                                    <td>
+                                        <button class="btn" style="padding: 4px 8px; background: rgba(99,102,241,0.1)" onclick="window.openUserModal('${u.id}')">✏️</button>
+                                        <button class="btn" style="padding: 4px 8px; background: rgba(239,68,68,0.1)" onclick="window.deleteUser('${u.id}')">🗑️</button>
+                                    </td>
+                                </tr>
+                            `).join('')}
                         </tbody>
                     </table>
                 </div>
             </div>
+
+            <dialog id="user-modal" class="card-container" style="margin: auto; border: 1px solid var(--primary); padding: 2rem; width: 400px; background: var(--bg-card); color: white;">
+                <h3 id="user-modal-title">Registrar Usuario</h3>
+                <form id="user-form" style="display: flex; flex-direction: column; gap: 15px; margin-top: 1rem">
+                    <input type="hidden" name="id" id="user-id-input">
+                    <div class="form-group">
+                        <label>Nombre Real</label>
+                        <input type="text" name="name" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Nombre de Usuario</label>
+                        <input type="text" name="username" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Contraseña (Opcional si edita)</label>
+                        <input type="password" name="password">
+                    </div>
+                    <div style="display: flex; gap: 10px; margin-top: 20px;">
+                        <button type="submit" class="btn btn-primary" style="flex:1">Guardar</button>
+                        <button type="button" class="btn" style="flex:1" onclick="document.getElementById('user-modal').close()">Cerrar</button>
+                    </div>
+                </form>
+            </dialog>
         `;
+    },
+
+    init_profile: async () => {
+        const modal = document.getElementById('user-modal');
+        const form = document.getElementById('user-form');
+
+        window.openUserModal = async (id = null) => {
+            form.reset();
+            const idInput = document.getElementById('user-id-input');
+            const title = document.getElementById('user-modal-title');
+            if (idInput) idInput.value = id || '';
+            if (title) title.textContent = id ? 'Editar Usuario' : 'Nuevo Usuario';
+
+            if (id) {
+                const users = await Storage.get('users');
+                const u = users.find(x => x.id == id);
+                if (u) {
+                    form.name.value = u.name;
+                    form.username.value = u.username;
+                }
+            }
+            if (modal) modal.showModal();
+        };
+
+        window.deleteUser = async (id) => {
+            const currentUser = Auth.getUser();
+            if (currentUser && id == currentUser.id) return alert('No puede eliminarse a sí mismo');
+            if (!confirm('¿Eliminar este usuario administrador?')) return;
+            await Storage.delete('users', id);
+            App.renderView('profile');
+        };
+
+        if (form) {
+            form.onsubmit = async (e) => {
+                e.preventDefault();
+                const id = document.getElementById('user-id-input').value;
+                const data = {
+                    name: form.name.value,
+                    username: form.username.value
+                };
+                if (form.password.value) data.password = form.password.value;
+
+                if (id) {
+                    await Storage.update('users', id, data);
+                } else {
+                    await Storage.add('users', data);
+                }
+                modal.close();
+                App.renderView('profile');
+            };
+        }
     }
 };
 
-window.processPayment = async (empId, hours, amount) => {
-    if (confirm(`¿Confirmar pago de ₡${Math.round(amount).toLocaleString()}?`)) {
-        await Storage.add('payments', {
-            employeeId: empId,
-            hours: hours,
-            amount: amount,
-            date: Storage.getLocalDate()
-        });
-        App.switchView('payroll');
-    }
-};
-
-window.deleteEmployee = async (id) => {
-    if (confirm('¿Seguro que desea eliminar este empleado?')) {
-        await Storage.delete('employees', id);
-        App.switchView('employees');
-    }
-};
-
-// --- Start ---
+// --- Boostrap ---
 document.addEventListener('DOMContentLoaded', () => App.init());

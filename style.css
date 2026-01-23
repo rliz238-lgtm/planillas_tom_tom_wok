@@ -363,15 +363,18 @@ dialog::backdrop {
 }
 
 dialog {
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 28px;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    border-radius: 28px !important;
     box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
-    background: #1e293b;
-    padding: 2.5rem;
+    background: #1e293b !important;
+    padding: 0 !important;
     outline: none;
     max-width: 90vw;
-    margin: auto;
-    color: white;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    margin: 0;
 }
 
 dialog[open] {

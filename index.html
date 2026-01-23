@@ -5,7 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Planillas Tom Tom Wok</title>
-    <meta name="description" content="Sistema profesional de gestión de planillas y control de horas para restaurantes.">
+    <meta name="description"
+        content="Sistema profesional de gestión de planillas y control de horas para restaurantes.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -14,30 +15,38 @@
 </head>
 
 <body>
-    <div id="login-view" class="login-screen">
+    <!-- Vista de Login -->
+    <div id="login-view" class="login-screen" style="display: none;">
         <div class="login-card">
             <img src="img/logo_tom_tom_wok_white.png" alt="Tom Tom Wok Logo" style="width: 200px; margin-bottom: 2rem;">
-            <h1>Tom Tom Wok</h1>
-            <p style="color: var(--text-muted); margin-bottom: 1rem;">Gestión de Planillas Profesionales</p>
-            
-            <div id="login-error" class="login-error">Usuario o contraseña incorrectos</div>
-            
-            <form id="login-form" class="login-form">
+            <p style="color: var(--text-muted); margin-bottom: 1rem;">Sistema de Control de Planillas</p>
+
+            <div id="login-error" class="login-error">
+                Usuario o contraseña incorrectos.
+            </div>
+
+            <form class="login-form" id="login-form">
                 <div class="login-input-group">
                     <label>Usuario</label>
-                    <input type="text" id="username" placeholder="Ingrese su usuario" required autofocus>
+                    <input type="text" id="username" placeholder="admin" required autofocus>
                 </div>
                 <div class="login-input-group">
                     <label>Contraseña</label>
                     <input type="password" id="password" placeholder="••••••••" required>
                 </div>
-                <button type="submit" class="login-btn">Ingresar al Sistema</button>
+                <button type="submit" class="login-btn">Entrar al Sistema</button>
             </form>
+
+            <p style="margin-top: 2rem; font-size: 0.8rem; color: var(--text-muted)">
+                © 2026 Tom Tom Wok
+            </p>
         </div>
     </div>
 
+    <!-- App Container -->
     <div id="app" style="display: none;">
         <aside class="sidebar">
+
             <div class="logo">
                 <img src="img/logo_tom_tom_wok_white.png" alt="Tom Tom Wok Logo">
             </div>
@@ -65,7 +74,8 @@
                 </button>
             </nav>
             <div style="margin-top: auto; padding: 1rem;">
-                <button class="btn" id="logout-btn" style="width: 100%; justify-content: center; background: rgba(239,68,68,0.1); color: var(--danger);">
+                <button class="btn" id="logout-btn"
+                    style="width: 100%; justify-content: center; background: rgba(239, 68, 68, 0.1); color: var(--danger);">
                     🚪 Cerrar Sesión
                 </button>
             </div>
@@ -79,9 +89,10 @@
                 <h2 id="view-title">Dashboard</h2>
                 <div class="user-profile">
                     <span class="status-dot"></span>
-                    <span class="username-display">Administrador</span>
+                    <span class="username">Administrador</span>
                 </div>
             </header>
+
             <div id="view-container">
                 <!-- Views will be injected here -->
             </div>
@@ -90,7 +101,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
-    <script src="main.js?v=14.0"></script>
+    <script src="main.js?v=13.0"></script>
 </body>
 
 </html>

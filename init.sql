@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS employees (
     start_date DATE NOT NULL,
     end_date DATE,
     apply_ccss BOOLEAN DEFAULT FALSE,
+    salary_history JSONB DEFAULT '[]'::jsonb,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -33,6 +34,7 @@ CREATE TABLE IF NOT EXISTS logs (
     hours DECIMAL(5, 2) NOT NULL,
     time_in TIME,
     time_out TIME,
+    is_imported BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -40,8 +42,12 @@ CREATE TABLE IF NOT EXISTS logs (
 CREATE TABLE IF NOT EXISTS payments (
     id SERIAL PRIMARY KEY,
     employee_id INTEGER REFERENCES employees(id) ON DELETE CASCADE,
-    amount DECIMAL(12, 2) NOT NULL,
+    amount DECIMAL(12, 2) NOT NULL, -- Gross amount
+    hours DECIMAL(10, 2) DEFAULT 0,
+    deduction_ccss DECIMAL(12, 2) DEFAULT 0,
+    net_amount DECIMAL(12, 2) DEFAULT 0,
     date DATE NOT NULL,
+    is_imported BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -52,7 +58,6 @@ CREATE TABLE IF NOT EXISTS settings (
 );
 
 -- Insertar usuario admin por defecto (password: password123)
--- Nota: En producción esto debería estar hasheado
 INSERT INTO users (username, password, name) 
 VALUES ('admin', 'password123', 'Administrador Principal')
 ON CONFLICT (username) DO NOTHING;
@@ -61,3 +66,4 @@ ON CONFLICT (username) DO NOTHING;
 INSERT INTO users (username, password, name) 
 VALUES ('rli001', 'rli001', 'Usuario RLI')
 ON CONFLICT (username) DO UPDATE SET password = EXCLUDED.password;
+
