@@ -491,7 +491,7 @@ const Views = {
                         <tbody>
                             ${filteredEmployees.map(emp => `
                                 <tr>
-                                    <td style="font-weight:600; cursor:pointer; color:var(--primary)" onclick="App.switchView('employeeDetail', '${emp.id}')">${emp.name}</td>
+                                    <td style="font-weight:600; cursor:pointer; color:white" onclick="App.switchView('employeeDetail', '${emp.id}')">${emp.name}</td>
                                     <td>${emp.position}</td>
                                     <td>₡${parseFloat(emp.hourly_rate).toLocaleString()}</td>
                                     <td>
@@ -1084,7 +1084,7 @@ const Views = {
                             ${pendingSummary.map(ps => `
                                 <tr>
                                     <td><input type="checkbox" class="pending-check" data-id="${ps.id}" data-hours="${ps.hours}" data-net="${ps.net}" data-deduction="${ps.deduction}" checked></td>
-                                    <td style="font-weight: 600">${ps.name}</td>
+                                    <td style="font-weight: 600; color: white;">${ps.name}</td>
                                     <td>${ps.hours.toFixed(1)}h</td>
                                     <td style="color: var(--danger)">₡${Math.round(ps.deduction).toLocaleString()}</td>
                                     <td style="color: var(--success); font-weight: 600;">₡${Math.round(ps.net).toLocaleString()}</td>
@@ -1125,7 +1125,7 @@ const Views = {
                                     <tr>
                                         <td><input type="checkbox" class="payment-check" data-id="${p.id}"></td>
                                         <td>${p.date ? p.date.split('T')[0] : '—'}</td>
-                                        <td style="font-weight: 600">${emp ? emp.name : 'Desconocido'}</td>
+                                        <td style="font-weight: 600; color: white;">${emp ? emp.name : 'Desconocido'}</td>
                                         <td>${parseFloat(p.hours || 0).toFixed(1)}h</td>
                                         <td style="color: var(--success); font-weight: 700;">₡${Math.round(p.amount).toLocaleString()}</td>
                                         <td>${p.is_imported ? '✅' : '❌'}</td>
