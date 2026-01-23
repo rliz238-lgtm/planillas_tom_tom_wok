@@ -596,10 +596,35 @@ const Views = {
         };
 
         window.deleteEmployee = async (id) => {
-            if (!confirm('¿Realmente desea eliminar este empleado?')) return;
-            if (await Storage.delete('employees', id)) {
-                App.renderView('employees');
-            }
+            const employees = await Storage.get('employees');
+            const emp = employees.find(e => e.id == id);
+            if (!emp) return;
+
+            const modalHtml = `
+                <dialog id="delete-confirm-modal" class="modal">
+                    <div class="modal-content" style="max-width: 400px; text-align: center;">
+                        <button class="modal-close-btn" onclick="document.getElementById('delete-confirm-modal').close(); document.getElementById('delete-confirm-modal').remove();">✕</button>
+                        <div style="font-size: 3rem; margin-bottom: 1rem">⚠️</div>
+                        <h3 style="color: var(--danger); margin-bottom: 1rem">¿Eliminar Empleado?</h3>
+                        <p style="color: var(--text-muted); margin-bottom: 2rem">Esta acción eliminará a <strong>${emp.name}</strong> y todos sus registros. No se puede deshacer.</p>
+                        <div style="display: flex; gap: 10px;">
+                            <button id="confirm-delete-btn" class="btn" style="background: var(--danger); flex: 1">Eliminar</button>
+                            <button class="btn" style="flex: 1" onclick="document.getElementById('delete-confirm-modal').close(); document.getElementById('delete-confirm-modal').remove();">Cancelar</button>
+                        </div>
+                    </div>
+                </dialog>
+            `;
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+            const modal = document.getElementById('delete-confirm-modal');
+            modal.showModal();
+
+            document.getElementById('confirm-delete-btn').onclick = async () => {
+                if (await Storage.delete('employees', id)) {
+                    modal.close();
+                    modal.remove();
+                    App.renderView('employees');
+                }
+            };
         };
 
         form.onsubmit = async (e) => {
@@ -1268,20 +1293,23 @@ const Views = {
             <div class="card-container">
                 <div style="margin-bottom: 2rem">
                     <h3>Importar Liquidación desde Excel</h3>
-                    <p style="color: var(--text-muted); font-size: 0.9rem">El sistema leerá los datos siguiendo el orden de columnas del formato estándar (Ini, Fin, Empleado, Horas...)</p>
+                    <p style="color: var(--text-muted); font-size: 0.9rem">Seleccione o arrastre el archivo de liquidación (Ini, Fin, Empleado, Horas...)</p>
                 </div>
                 
-                <div id="drop-zone" class="import-zone">
-                    <div style="font-size: 3rem; margin-bottom: 1rem">📄</div>
-                    <h4>Arrastra tu archivo aquí</h4>
-                    <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 0.5rem">o haz clic para seleccionar (.xlsx, .xls, .csv)</p>
-                    <input type="file" id="excel-input" accept=".xlsx, .xls, .csv" style="display: none">
+                <div id="drop-zone" class="import-zone" style="border: 2px dashed var(--primary); background: rgba(99,102,241,0.02); height: 250px; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; border-radius: 20px;">
+                    <div style="font-size: 3.5rem; margin-bottom: 1rem">📊</div>
+                    <h4 id="drop-zone-text">Arrastra tu archivo aquí</h4>
+                    <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 0.5rem">o haz clic para buscar (.xlsx, .xls, .csv)</p>
+                    <input type="file" id="excel-input" accept=".xlsx, .xls, .csv" style="position: absolute; width: 100%; height: 100%; opacity: 0; cursor: pointer;">
                 </div>
 
                 <div id="import-preview-container" style="margin-top: 3rem; display: none">
                     <div class="table-header">
                         <h3>Vista Previa de Importación</h3>
-                        <button class="btn btn-primary" id="execute-import-btn">✅ Confirmar e Importar</button>
+                        <div style="display: flex; gap: 10px">
+                            <button class="btn" style="background: rgba(255,255,255,0.05)" onclick="App.renderView('import')">Cancelar</button>
+                            <button class="btn btn-primary" id="execute-import-btn">✅ Confirmar e Importar</button>
+                        </div>
                     </div>
                     <div class="table-container">
                         <table id="preview-table">
@@ -1309,7 +1337,9 @@ const Views = {
         const preview = document.getElementById('import-preview-container');
         let importedData = [];
 
-        if (dropZone) dropZone.onclick = () => input.click();
+        if (dropZone) dropZone.onclick = (e) => {
+            if (e.target !== input) input.click();
+        };
 
         const excelDateToJSDate = (serial) => {
             if (!serial || isNaN(serial)) return serial;
@@ -1318,6 +1348,31 @@ const Views = {
             const date_info = new Date(utc_value * 1000);
             return date_info.toISOString().split('T')[0];
         };
+
+        if (dropZone) {
+            dropZone.ondragover = (e) => {
+                e.preventDefault();
+                dropZone.style.borderColor = 'var(--success)';
+            };
+            dropZone.ondragleave = () => {
+                dropZone.style.borderColor = 'var(--primary)';
+            };
+            dropZone.ondrop = (e) => {
+                e.preventDefault();
+                dropZone.style.borderColor = 'var(--primary)';
+                if (e.dataTransfer.files.length > 0) {
+                    const file = e.dataTransfer.files[0];
+                    const reader = new FileReader();
+                    reader.onload = (ev) => {
+                        const data = new Uint8Array(ev.target.result);
+                        const workbook = XLSX.read(data, { type: 'array' });
+                        const sheetData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1 });
+                        processImportableData(sheetData.slice(1).filter(r => r.length > 0));
+                    };
+                    reader.readAsArrayBuffer(file);
+                }
+            };
+        }
 
         if (input) input.onchange = (e) => {
             const file = e.target.files[0];
