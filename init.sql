@@ -64,6 +64,12 @@ ALTER TABLE logs ADD COLUMN IF NOT EXISTS is_paid BOOLEAN DEFAULT FALSE;
 ALTER TABLE logs ADD COLUMN IF NOT EXISTS is_imported BOOLEAN DEFAULT FALSE;
 ALTER TABLE logs ALTER COLUMN hours TYPE DECIMAL(10, 2); -- Asegurar precisión
 
+-- Migraciones para Tabla payments
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS hours DECIMAL(10, 2) DEFAULT 0;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS deduction_ccss DECIMAL(12, 2) DEFAULT 0;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS net_amount DECIMAL(12, 2) DEFAULT 0;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS is_imported BOOLEAN DEFAULT FALSE;
+
 -- Insertar usuario admin por defecto
 INSERT INTO users (username, password, name) 
 VALUES ('admin', 'password1102', 'Administrador Principal')

@@ -1286,7 +1286,7 @@ const Views = {
                     const deduction = parseFloat(check.dataset.deduction);
 
                     // 1. Guardar el pago
-                    await Storage.add('payments', {
+                    const payResult = await Storage.add('payments', {
                         employeeId: parseInt(empId),
                         date: Storage.getLocalDate(),
                         amount: net,
@@ -1296,8 +1296,13 @@ const Views = {
                         isImported: false
                     });
 
-                    // 2. Borrar las horas (logs) para que ya no salgan como pendientes
-                    await Storage.deleteLogsByEmployee(empId);
+                    // 2. Solo si el pago se guardó bien, borramos las horas (logs)
+                    if (payResult && payResult.success) {
+                        await Storage.deleteLogsByEmployee(empId);
+                    } else {
+                        console.error("Fallo al guardar pago para empId:", empId, payResult.error);
+                        throw new Error(`No se pudo procesar el pago de uno o más empleados.`);
+                    }
                 }
 
                 Storage.showLoader(false);
