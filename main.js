@@ -468,63 +468,65 @@ const Views = {
                 </div>
             </div>
 
-            <dialog id="employee-modal" class="card-container" style="margin: auto; border: 1px solid var(--primary); padding: 2rem; width: 450px; max-height: 90vh; overflow-y: auto; background: var(--bg-card); color: white;">
-                <h3 id="modal-title" style="margin-bottom: 1.5rem">Registrar Empleado</h3>
-                <form id="employee-form" style="display: flex; flex-direction: column; gap: 15px;">
-                    <input type="hidden" name="id" id="edit-emp-id">
-                    <div class="form-group">
-                        <label>Nombre Completo</label>
-                        <input type="text" name="name" placeholder="Ej: Juan Pérez" required>
-                    </div>
-                    <div class="form-group">
-                        <label>Número de Cédula</label>
-                        <input type="text" name="cedula" placeholder="Ej: 1-2345-6789">
-                    </div>
-                    <div class="form-group">
-                        <label>Teléfono (WhatsApp)</label>
-                        <input type="text" name="phone" placeholder="Ej: 50688888888">
-                    </div>
-                    <div class="form-group" style="background: rgba(99,102,241,0.05); padding: 1rem; border-radius: 8px; border: 1px solid rgba(99,102,241,0.3);">
-                        <label style="color: var(--primary); font-weight: 600;">🔐 PIN de Acceso al Portal (4 dígitos)</label>
-                        <input type="text" name="pin" placeholder="Ej: 1234" maxlength="4" pattern="[0-9]*" inputmode="numeric" style="margin-top: 0.5rem;">
-                        <small style="color: var(--text-muted); font-size: 0.75rem; display: block; margin-top: 0.5rem;">Este PIN permite al empleado registrar sus horas en el portal de auto-servicio</small>
-                    </div>
-                    <div class="grid-2" style="gap: 1rem">
+            <dialog id="employee-modal">
+                <div class="modal-content" style="max-height: 85vh; overflow-y: auto;">
+                    <h3 id="modal-title" style="margin-bottom: 1.5rem">Registrar Empleado</h3>
+                    <form id="employee-form" style="display: flex; flex-direction: column; gap: 15px;">
+                        <input type="hidden" name="id" id="edit-emp-id">
                         <div class="form-group">
-                            <label>Cargo</label>
-                            <input type="text" name="position" placeholder="Ej: Chef" required>
+                            <label>Nombre Completo</label>
+                            <input type="text" name="name" placeholder="Ej: Juan Pérez" required>
                         </div>
                         <div class="form-group">
-                            <label>Pago por Hora (₡)</label>
-                            <input type="number" name="hourlyRate" placeholder="3500" required>
-                        </div>
-                    </div>
-                    <div class="grid-2" style="gap: 1rem">
-                        <div class="form-group">
-                            <label>Estado</label>
-                            <select name="status">
-                                <option value="Active">Activo</option>
-                                <option value="Inactive">Inactivo</option>
-                            </select>
+                            <label>Número de Cédula</label>
+                            <input type="text" name="cedula" placeholder="Ej: 1-2345-6789">
                         </div>
                         <div class="form-group">
-                            <label>Fecha Inicio</label>
-                            <input type="date" name="startDate" required>
+                            <label>Teléfono (WhatsApp)</label>
+                            <input type="text" name="phone" placeholder="Ej: 50688888888">
                         </div>
-                    </div>
-                    <div class="form-group">
-                        <label>Fecha Terminación (Opcional)</label>
-                        <input type="date" name="endDate">
-                    </div>
-                    <div class="form-group" style="display: flex; align-items: center; gap: 10px; background: rgba(99,102,241,0.05); padding: 10px; border-radius: 8px; border: 1px solid rgba(99,102,241,0.2);">
-                        <input type="checkbox" name="applyCCSS" id="apply-ccss-check" style="width: 20px; height: 20px; cursor: pointer;">
-                        <label for="apply-ccss-check" style="margin: 0; cursor: pointer; font-weight: 600;">Aplicar Rebajo CCSS (10.67%)</label>
-                    </div>
-                    <div style="display: flex; gap: 10px; margin-top: 20px;">
-                        <button type="submit" class="btn btn-primary" style="flex:1">Guardar</button>
-                        <button type="button" class="btn" style="flex:1; background: rgba(255,255,255,0.1)" onclick="document.getElementById('employee-modal').close()">Cancelar</button>
-                    </div>
-                </form>
+                        <div class="form-group" style="background: rgba(99,102,241,0.05); padding: 1rem; border-radius: 8px; border: 1px solid rgba(99,102,241,0.3);">
+                            <label style="color: var(--primary); font-weight: 600;">🔐 PIN de Acceso al Portal (4 dígitos)</label>
+                            <input type="text" name="pin" placeholder="Ej: 1234" maxlength="4" pattern="[0-9]*" inputmode="numeric" style="margin-top: 0.5rem;">
+                            <small style="color: var(--text-muted); font-size: 0.75rem; display: block; margin-top: 0.5rem;">Este PIN permite al empleado registrar sus horas en el portal de auto-servicio</small>
+                        </div>
+                        <div class="grid-2" style="gap: 1rem">
+                            <div class="form-group">
+                                <label>Cargo</label>
+                                <input type="text" name="position" placeholder="Ej: Chef" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Pago por Hora (₡)</label>
+                                <input type="number" name="hourlyRate" placeholder="3500" required>
+                            </div>
+                        </div>
+                        <div class="grid-2" style="gap: 1rem">
+                            <div class="form-group">
+                                <label>Estado</label>
+                                <select name="status">
+                                    <option value="Active">Activo</option>
+                                    <option value="Inactive">Inactivo</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Fecha Inicio</label>
+                                <input type="date" name="startDate" required>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Fecha Terminación (Opcional)</label>
+                            <input type="date" name="endDate">
+                        </div>
+                        <div class="form-group" style="display: flex; align-items: center; gap: 10px; background: rgba(99,102,241,0.05); padding: 10px; border-radius: 8px; border: 1px solid rgba(99,102,241,0.2);">
+                            <input type="checkbox" name="applyCCSS" id="apply-ccss-check" style="width: 20px; height: 20px; cursor: pointer;">
+                            <label for="apply-ccss-check" style="margin: 0; cursor: pointer; font-weight: 600;">Aplicar Rebajo CCSS (10.67%)</label>
+                        </div>
+                        <div style="display: flex; gap: 10px; margin-top: 20px;">
+                            <button type="submit" class="btn btn-primary" style="flex:1">Guardar</button>
+                            <button type="button" class="btn" style="flex:1; background: rgba(255,255,255,0.1)" onclick="document.getElementById('employee-modal').close()">Cancelar</button>
+                        </div>
+                    </form>
+                </div>
             </dialog>
         `;
     },
@@ -714,26 +716,28 @@ const Views = {
                 </div>
             </div>
 
-            <dialog id="edit-detail-modal" class="card-container" style="margin: auto; border: 1px solid var(--primary); padding: 2rem; width: 400px; background: var(--bg-card); color: white;">
-                <h3>Actualizar Datos de ${emp.name}</h3>
-                <form id="edit-detail-form" style="display: flex; flex-direction: column; gap: 15px; margin-top: 1rem">
-                    <div class="form-group">
-                        <label>Nuevo Pago por Hora (₡)</label>
-                        <input type="number" name="newRate" value="${emp.hourly_rate}" required>
-                    </div>
-                    <div class="form-group">
-                        <label>Motivo del Cambio</label>
-                        <input type="text" name="reason" placeholder="Ej: Ajuste anual, Ascenso...">
-                    </div>
-                    <div class="form-group" style="display: flex; align-items: center; gap: 10px; margin-top: 10px">
-                        <input type="checkbox" name="applyCCSS" id="check-ccss-detail" ${emp.apply_ccss ? 'checked' : ''} style="width: 20px; height: 20px">
-                        <label for="check-ccss-detail" style="margin:0">Aplicar Rebajo CCSS</label>
-                    </div>
-                    <div style="display: flex; gap: 10px; margin-top: 20px;">
-                        <button type="submit" class="btn btn-primary" style="flex:1">Actualizar</button>
-                        <button type="button" class="btn" style="flex:1" onclick="document.getElementById('edit-detail-modal').close()">Cerrar</button>
-                    </div>
-                </form>
+            <dialog id="edit-detail-modal">
+                <div class="modal-content">
+                    <h3>Actualizar Datos de ${emp.name}</h3>
+                    <form id="edit-detail-form" style="display: flex; flex-direction: column; gap: 15px; margin-top: 1rem">
+                        <div class="form-group">
+                            <label>Nuevo Pago por Hora (₡)</label>
+                            <input type="number" name="newRate" value="${emp.hourly_rate}" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Motivo del Cambio</label>
+                            <input type="text" name="reason" placeholder="Ej: Ajuste anual, Ascenso...">
+                        </div>
+                        <div class="form-group" style="display: flex; align-items: center; gap: 10px; margin-top: 10px">
+                            <input type="checkbox" name="applyCCSS" id="check-ccss-detail" ${emp.apply_ccss ? 'checked' : ''} style="width: 20px; height: 20px">
+                            <label for="check-ccss-detail" style="margin:0">Aplicar Rebajo CCSS</label>
+                        </div>
+                        <div style="display: flex; gap: 10px; margin-top: 20px;">
+                            <button type="submit" class="btn btn-primary" style="flex:1">Actualizar</button>
+                            <button type="button" class="btn" style="flex:1" onclick="document.getElementById('edit-detail-modal').close()">Cerrar</button>
+                        </div>
+                    </form>
+                </div>
             </dialog>
         `;
     },
@@ -1302,27 +1306,29 @@ const Views = {
                 </div>
             </div>
 
-            <dialog id="user-modal" class="card-container" style="margin: auto; border: 1px solid var(--primary); padding: 2rem; width: 400px; background: var(--bg-card); color: white;">
-                <h3 id="user-modal-title">Registrar Usuario</h3>
-                <form id="user-form" style="display: flex; flex-direction: column; gap: 15px; margin-top: 1rem">
-                    <input type="hidden" name="id" id="user-id-input">
-                    <div class="form-group">
-                        <label>Nombre Real</label>
-                        <input type="text" name="name" required>
-                    </div>
-                    <div class="form-group">
-                        <label>Nombre de Usuario</label>
-                        <input type="text" name="username" required>
-                    </div>
-                    <div class="form-group">
-                        <label>Contraseña (Opcional si edita)</label>
-                        <input type="password" name="password">
-                    </div>
-                    <div style="display: flex; gap: 10px; margin-top: 20px;">
-                        <button type="submit" class="btn btn-primary" style="flex:1">Guardar</button>
-                        <button type="button" class="btn" style="flex:1" onclick="document.getElementById('user-modal').close()">Cerrar</button>
-                    </div>
-                </form>
+            <dialog id="user-modal">
+                <div class="modal-content">
+                    <h3 id="user-modal-title">Registrar Usuario</h3>
+                    <form id="user-form" style="display: flex; flex-direction: column; gap: 15px; margin-top: 1rem">
+                        <input type="hidden" name="id" id="user-id-input">
+                        <div class="form-group">
+                            <label>Nombre Real</label>
+                            <input type="text" name="name" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Nombre de Usuario</label>
+                            <input type="text" name="username" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Contraseña (Opcional si edita)</label>
+                            <input type="password" name="password">
+                        </div>
+                        <div style="display: flex; gap: 10px; margin-top: 20px;">
+                            <button type="submit" class="btn btn-primary" style="flex:1">Guardar</button>
+                            <button type="button" class="btn" style="flex:1" onclick="document.getElementById('user-modal').close()">Cerrar</button>
+                        </div>
+                    </form>
+                </div>
             </dialog>
         `;
     },
