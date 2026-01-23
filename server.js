@@ -154,14 +154,21 @@ app.get('/api/employees', async (req, res) => {
 
 app.post('/api/employees', async (req, res) => {
     const { name, cedula, phone, pin, position, hourlyRate, status, startDate, endDate, applyCCSS, salaryHistory } = req.body;
+
+    // Validación de campos obligatorios
+    if (!name || !hourlyRate || !startDate) {
+        return res.status(400).json({ error: 'Faltan campos obligatorios: name, hourlyRate o startDate' });
+    }
+
     try {
         const result = await db.query(
             'INSERT INTO employees (name, cedula, phone, pin, position, hourly_rate, status, start_date, end_date, apply_ccss, salary_history) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *',
-            [name, cedula, phone, pin, position, hourlyRate, status, startDate, endDate, applyCCSS, JSON.stringify(salaryHistory || [])]
+            [name, cedula, phone, pin, position, hourlyRate, status || 'Active', startDate, endDate || null, applyCCSS || false, JSON.stringify(salaryHistory || [])]
         );
         res.json(result.rows[0]);
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        console.error("POST /api/employees error:", err.message);
+        res.status(500).json({ error: "No se pudo crear el empleado: " + err.message });
     }
 });
 
@@ -200,14 +207,23 @@ app.get('/api/logs', async (req, res) => {
 
 app.post('/api/logs', async (req, res) => {
     const { employeeId, date, hours, timeIn, timeOut, isImported } = req.body;
+
+    if (!employeeId || isNaN(employeeId)) {
+        return res.status(400).json({ error: 'ID de empleado inválido o faltante' });
+    }
+    if (!date || !hours && hours !== 0) {
+        return res.status(400).json({ error: 'Faltan campos obligatorios: date o hours' });
+    }
+
     try {
         const result = await db.query(
             'INSERT INTO logs (employee_id, date, hours, time_in, time_out, is_imported) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-            [employeeId, date, hours, timeIn, timeOut, isImported || false]
+            [employeeId, date, hours, timeIn || null, timeOut || null, isImported || false]
         );
         res.json(result.rows[0]);
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        console.error("POST /api/logs error:", err.message);
+        res.status(500).json({ error: "No se pudo registrar la hora: " + err.message });
     }
 });
 
@@ -252,19 +268,7 @@ app.delete('/api/payments/:id', async (req, res) => {
     }
 });
 
-app.post('/api/employee-auth', async (req, res) => {
-    const { pin } = req.body;
-    try {
-        const result = await db.query('SELECT * FROM employees WHERE pin = $1 AND status = \'Active\'', [pin]);
-        if (result.rows.length > 0) {
-            res.json(result.rows[0]);
-        } else {
-            res.status(401).json({ error: 'PIN incorrecto o empleado inactivo' });
-        }
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
+// La ruta /api/employee-auth estaba duplicada, se mantiene una sola instancia.
 
 app.listen(PORT, () => {
     console.log(`Servidor backend de Tom Tom Wok corriendo en puerto ${PORT}`);

@@ -42,18 +42,22 @@ const Storage = {
         }
     },
 
-    async add(key, item) {
+    async add(key, data) {
         try {
             const response = await fetch(`/api/${this.SCHEMA[key]}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(item)
+                body: JSON.stringify(data)
             });
-            if (!response.ok) throw new Error('Error al agregar dato');
-            return await response.json();
+            const result = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                console.error(`API Error (${key}):`, result.error || 'Unknown error');
+                return { error: result.error || 'Error al guardar datos', success: false };
+            }
+            return { ...result, success: true };
         } catch (err) {
-            console.error(err);
-            return null;
+            console.error(`Fetch Error (${key}):`, err);
+            return { error: err.message, success: false };
         }
     },
 
@@ -1519,7 +1523,7 @@ const Views = {
 
                             // Auto-create employee if not found
                             if (!empId) {
-                                const newEmp = await Storage.add('employees', {
+                                const newEmpResult = await Storage.add('employees', {
                                     name: item.name,
                                     position: 'Importado',
                                     hourlyRate: item.rate || 3500,
@@ -1529,11 +1533,12 @@ const Views = {
                                     salaryHistory: []
                                 });
 
-                                if (newEmp && newEmp.id) {
-                                    empId = newEmp.id;
-                                    employees.push(newEmp);
+                                if (newEmpResult.success && newEmpResult.id) {
+                                    empId = newEmpResult.id;
+                                    // Añadir al arreglo local para futuras coincidencias en el mismo archivo
+                                    employees.push(newEmpResult);
                                 } else {
-                                    console.error("Error al auto-crear empleado:", item.name);
+                                    console.error("Error al auto-crear empleado:", item.name, newEmpResult.error);
                                     errorCount++;
                                     continue;
                                 }
@@ -1547,13 +1552,14 @@ const Views = {
                                 isImported: true
                             });
 
-                            if (logResult) {
+                            if (logResult.success) {
                                 successCount++;
                             } else {
+                                console.error("Error al guardar log:", item.name, logResult.error);
                                 errorCount++;
                             }
                         } catch (err) {
-                            console.error("Error procesando registro:", item.name, err);
+                            console.error("Error inesperado en registro:", item.name, err);
                             errorCount++;
                         }
                     }

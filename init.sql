@@ -1,5 +1,4 @@
 -- Tablas para Planillas Tom Tom Wok
-
 -- Tabla de Usuarios (Administradores)
 CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
@@ -31,10 +30,11 @@ CREATE TABLE IF NOT EXISTS logs (
     id SERIAL PRIMARY KEY,
     employee_id INTEGER REFERENCES employees(id) ON DELETE CASCADE,
     date DATE NOT NULL,
-    hours DECIMAL(5, 2) NOT NULL,
+    hours DECIMAL(10, 2) NOT NULL,
     time_in TIME,
     time_out TIME,
     is_imported BOOLEAN DEFAULT FALSE,
+    is_paid BOOLEAN DEFAULT FALSE, -- Nueva columna para control de pagos
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -42,7 +42,7 @@ CREATE TABLE IF NOT EXISTS logs (
 CREATE TABLE IF NOT EXISTS payments (
     id SERIAL PRIMARY KEY,
     employee_id INTEGER REFERENCES employees(id) ON DELETE CASCADE,
-    amount DECIMAL(12, 2) NOT NULL, -- Gross amount
+    amount DECIMAL(12, 2) NOT NULL,
     hours DECIMAL(10, 2) DEFAULT 0,
     deduction_ccss DECIMAL(12, 2) DEFAULT 0,
     net_amount DECIMAL(12, 2) DEFAULT 0,
@@ -57,12 +57,23 @@ CREATE TABLE IF NOT EXISTS settings (
     value TEXT
 );
 
--- Insertar usuario admin por defecto (password: password123)
+-- Migraciones para bases de datos existentes
+DO $$ 
+BEGIN 
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='logs' AND column_name='is_paid') THEN
+        ALTER TABLE logs ADD COLUMN is_paid BOOLEAN DEFAULT FALSE;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='logs' AND column_name='is_imported') THEN
+        ALTER TABLE logs ADD COLUMN is_imported BOOLEAN DEFAULT FALSE;
+    END IF;
+END $$;
+
+-- Insertar usuario admin por defecto
 INSERT INTO users (username, password, name) 
-VALUES ('admin', 'password123', 'Administrador Principal')
+VALUES ('admin', 'password1102', 'Administrador Principal')
 ON CONFLICT (username) DO NOTHING;
 
--- Insertar usuario solicitado rli001 (password: rli001)
+-- Insertar usuario rli001
 INSERT INTO users (username, password, name) 
 VALUES ('rli001', 'rli001', 'Usuario RLI')
 ON CONFLICT (username) DO UPDATE SET password = EXCLUDED.password;
