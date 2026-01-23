@@ -470,6 +470,7 @@ const Views = {
 
             <dialog id="employee-modal">
                 <div class="modal-content" style="max-height: 85vh; overflow-y: auto;">
+                    <button class="modal-close-btn" onclick="document.getElementById('employee-modal').close()">✕</button>
                     <h3 id="modal-title" style="margin-bottom: 1.5rem">Registrar Empleado</h3>
                     <form id="employee-form" style="display: flex; flex-direction: column; gap: 15px;">
                         <input type="hidden" name="id" id="edit-emp-id">
@@ -718,6 +719,7 @@ const Views = {
 
             <dialog id="edit-detail-modal">
                 <div class="modal-content">
+                    <button class="modal-close-btn" onclick="document.getElementById('edit-detail-modal').close()">✕</button>
                     <h3>Actualizar Datos de ${emp.name}</h3>
                     <form id="edit-detail-form" style="display: flex; flex-direction: column; gap: 15px; margin-top: 1rem">
                         <div class="form-group">
@@ -790,120 +792,173 @@ const Views = {
 
         return `
             <div class="card-container">
-                <div class="table-header">
-                    <h3>Registrar Horas de la Semana</h3>
-                    <div style="display: flex; gap: 10px">
-                        <button class="btn" onclick="window.clearCalculator()">Limpiar</button>
-                        <button class="btn btn-primary" id="process-all-logs-btn">🚀 Procesar Todo</button>
-                    </div>
+                <div style="margin-bottom: 2rem">
+                    <h3>Calculadora de Pago por Periodo</h3>
+                    <p style="color: var(--text-muted); font-size: 0.9rem">Ingrese las horas diarias para calcular el pago total de la semana o mes.</p>
                 </div>
-                <p style="color: var(--text-muted); margin-bottom: 1rem">Ingrese las horas diarias para cada colaborador. Use el formato decimal (ej: 8.5)</p>
-                
+
+                <div class="form-group" style="max-width: 400px; margin-bottom: 2rem;">
+                    <label>Seleccionar Empleado</label>
+                    <select id="calc-employee-id" required>
+                        <option value="">Seleccione un empleado...</option>
+                        ${activeEmployees.map(e => `<option value="${e.id}">${e.name} (₡${parseFloat(e.hourly_rate).toLocaleString()}/h)</option>`).join('')}
+                    </select>
+                </div>
+
                 <div class="table-container">
-                    <table id="calculator-table">
+                    <table id="calc-table">
                         <thead>
                             <tr>
-                                <th>Colaborador</th>
-                                <th>Lun</th>
-                                <th>Mar</th>
-                                <th>Mié</th>
-                                <th>Jue</th>
-                                <th>Vie</th>
-                                <th>Sáb</th>
-                                <th>Dom</th>
-                                <th>Total</th>
-                                <th>Monto</th>
+                                <th>Fecha</th>
+                                <th>Entrada</th>
+                                <th>Salida</th>
+                                <th>Horas</th>
+                                <th>Acción</th>
                             </tr>
                         </thead>
-                        <tbody>
-                            ${activeEmployees.map(emp => `
-                                <tr data-emp-id="${emp.id}" data-rate="${emp.hourly_rate}" data-ccss="${emp.apply_ccss ? '1' : '0'}">
-                                    <td style="font-weight: 600">${emp.name}</td>
-                                    <td><input type="number" step="0.5" class="hour-input" data-day="0" placeholder="0"></td>
-                                    <td><input type="number" step="0.5" class="hour-input" data-day="1" placeholder="0"></td>
-                                    <td><input type="number" step="0.5" class="hour-input" data-day="2" placeholder="0"></td>
-                                    <td><input type="number" step="0.5" class="hour-input" data-day="3" placeholder="0"></td>
-                                    <td><input type="number" step="0.5" class="hour-input" data-day="4" placeholder="0"></td>
-                                    <td><input type="number" step="0.5" class="hour-input" data-day="5" placeholder="0"></td>
-                                    <td><input type="number" step="0.5" class="hour-input" data-day="6" placeholder="0"></td>
-                                    <td class="row-total">0.0</td>
-                                    <td class="row-amount">₡0</td>
-                                </tr>
-                            `).join('')}
+                        <tbody id="calc-tbody">
+                            <!-- Rows injected here -->
                         </tbody>
                     </table>
+                </div>
+
+                <div style="margin-top: 1.5rem; display: flex; gap: 10px;">
+                    <button class="btn" style="background: rgba(255,255,255,0.05)" id="calc-add-row">+ Añadir Día</button>
+                    <button class="btn btn-primary" id="calc-save-logs" disabled>💾 Guardar en Historial</button>
+                </div>
+
+                <div id="calc-summary" style="margin-top: 3rem; padding: 2rem; background: rgba(99, 102, 241, 0.05); border-radius: 20px; border: 1px solid var(--primary); display: none;">
+                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 2rem; text-align: center;">
+                        <div>
+                            <div style="color: var(--text-muted); font-size: 0.9rem">Total Horas</div>
+                            <div class="value" id="calc-total-hours" style="font-size: 2.5rem; color: var(--primary)">0.00h</div>
+                        </div>
+                        <div>
+                            <div style="color: var(--text-muted); font-size: 0.9rem">Monto Total</div>
+                            <div class="value" id="calc-total-pay" style="font-size: 2.5rem; color: var(--success)">₡0</div>
+                        </div>
+                    </div>
                 </div>
             </div>
         `;
     },
 
     init_calculator: async () => {
-        const table = document.getElementById('calculator-table');
-        const processBtn = document.getElementById('process-all-logs-btn');
+        const tbody = document.getElementById('calc-tbody');
+        const addRowBtn = document.getElementById('calc-add-row');
+        const saveBtn = document.getElementById('calc-save-logs');
+        const empSelect = document.getElementById('calc-employee-id');
+        const summary = document.getElementById('calc-summary');
 
-        const calculateRow = (row) => {
-            const inputs = row.querySelectorAll('.hour-input');
-            const totalCell = row.querySelector('.row-total');
-            const amountCell = row.querySelector('.row-amount');
-            const rate = parseFloat(row.dataset.rate);
-            const applyCCSS = row.dataset.ccss === '1';
+        let rowCount = 0;
 
-            let totalHours = 0;
-            inputs.forEach(input => totalHours += parseFloat(input.value || 0));
+        const createRow = () => {
+            rowCount++;
+            const lastRow = tbody.lastElementChild;
+            let nextDateStr = Storage.getLocalDate();
+            let nextIn = "08:00";
+            let nextOut = "17:00";
 
-            const gross = totalHours * rate;
-            const deduction = applyCCSS ? (gross * 0.1067) : 0;
-            const net = gross - deduction;
+            if (lastRow) {
+                const lastDateVal = lastRow.querySelector('.calc-date').value;
+                const lastInVal = lastRow.querySelector('.calc-in').value;
+                const lastOutVal = lastRow.querySelector('.calc-out').value;
 
-            totalCell.textContent = totalHours.toFixed(1);
-            amountCell.textContent = '₡' + Math.round(net).toLocaleString();
-        };
-
-        table.querySelectorAll('.hour-input').forEach(input => {
-            input.oninput = () => calculateRow(input.closest('tr'));
-        });
-
-        processBtn.onclick = async () => {
-            if (!confirm('¿Desea guardar todos los registros de horas ingresados?')) return;
-
-            const rows = table.querySelectorAll('tbody tr');
-            const today = new Date();
-            const getDayDate = (offset) => {
-                const d = new Date(today);
-                const currentDay = d.getDay(); // 0(Dom) - 6(Sab)
-                const diff = (offset + 1) - (currentDay === 0 ? 7 : currentDay);
-                d.setDate(d.getDate() + diff);
-                return Storage.getLocalDate(d);
-            };
-
-            let count = 0;
-            for (const row of rows) {
-                const empId = row.dataset.empId;
-                const inputs = row.querySelectorAll('.hour-input');
-
-                for (let i = 0; i < 7; i++) {
-                    const val = parseFloat(inputs[i].value || 0);
-                    if (val > 0) {
-                        await Storage.add('logs', {
-                            employeeId: parseInt(empId),
-                            date: getDayDate(i),
-                            hours: val,
-                            notes: 'Ingreso manual calculadora'
-                        });
-                        count++;
-                    }
+                if (lastDateVal) {
+                    const [y, m, d] = lastDateVal.split('-').map(Number);
+                    const dt = new Date(y, m - 1, d);
+                    dt.setDate(dt.getDate() + 1);
+                    nextDateStr = Storage.getLocalDate(dt);
                 }
+                nextIn = lastInVal;
+                nextOut = lastOutVal;
             }
 
-            alert(`Se guardaron ${count} registros exitosamente.`);
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td><input type="date" class="calc-date" value="${nextDateStr}"></td>
+                <td><input type="time" class="calc-in" value="${nextIn}"></td>
+                <td><input type="time" class="calc-out" value="${nextOut}"></td>
+                <td class="calc-subtotal" style="font-weight: 600">0.00h</td>
+                <td><button class="btn" style="padding: 6px; color: var(--danger)" onclick="this.closest('tr').remove(); window.updateCalcTotal();">✕</button></td>
+            `;
+            tbody.appendChild(tr);
+
+            tr.querySelectorAll('input').forEach(input => {
+                input.oninput = () => window.updateCalcTotal();
+            });
+            window.updateCalcTotal();
+        };
+
+        window.updateCalcTotal = async () => {
+            const rows = tbody.querySelectorAll('tr');
+            let totalH = 0;
+            const empId = empSelect.value;
+            const employees = await Storage.get('employees');
+            const emp = employees.find(e => e.id == empId);
+            const rate = emp ? parseFloat(emp.hourly_rate) : 0;
+
+            rows.forEach(tr => {
+                const tIn = tr.querySelector('.calc-in').value;
+                const tOut = tr.querySelector('.calc-out').value;
+                if (tIn && tOut) {
+                    const start = new Date(`2000-01-01T${tIn}`);
+                    const end = new Date(`2000-01-01T${tOut}`);
+                    let diff = (end - start) / 1000 / 60 / 60;
+                    if (diff < 0) diff += 24;
+                    tr.querySelector('.calc-subtotal').textContent = diff.toFixed(2) + 'h';
+                    totalH += diff;
+                }
+            });
+
+            document.getElementById('calc-total-hours').textContent = totalH.toFixed(2) + 'h';
+            document.getElementById('calc-total-pay').textContent = '₡' + Math.round(totalH * rate).toLocaleString();
+
+            summary.style.display = totalH > 0 ? 'block' : 'none';
+            saveBtn.disabled = !empId || totalH <= 0;
+        };
+
+        empSelect.onchange = () => window.updateCalcTotal();
+        addRowBtn.onclick = () => createRow();
+
+        window.clearCalculator = () => {
+            tbody.innerHTML = '';
+            createRow();
+        };
+
+        saveBtn.onclick = async () => {
+            const empId = empSelect.value;
+            if (!empId) return;
+
+            const rows = tbody.querySelectorAll('tr');
+            let successCount = 0;
+
+            for (const tr of rows) {
+                const date = tr.querySelector('.calc-date').value;
+                const tIn = tr.querySelector('.calc-in').value;
+                const tOut = tr.querySelector('.calc-out').value;
+
+                const start = new Date(`2000-01-01T${tIn}`);
+                const end = new Date(`2000-01-01T${tOut}`);
+                let diff = (end - start) / 1000 / 60 / 60;
+                if (diff < 0) diff += 24;
+
+                await Storage.add('logs', {
+                    employeeId: parseInt(empId),
+                    date: date,
+                    timeIn: tIn,
+                    timeOut: tOut,
+                    hours: diff.toFixed(2),
+                    isImported: false
+                });
+                successCount++;
+            }
+
+            alert(`¡Éxito! Se guardaron ${successCount} registros en el historial.`);
             App.switchView('payroll');
         };
 
-        window.clearCalculator = () => {
-            table.querySelectorAll('input').forEach(i => i.value = '');
-            table.querySelectorAll('.row-total').forEach(t => t.textContent = '0.0');
-            table.querySelectorAll('.row-amount').forEach(a => a.textContent = '₡0');
-        };
+        createRow();
     },
 
     payroll: async () => {
@@ -1136,34 +1191,107 @@ const Views = {
         };
     },
 
-    benefits: async () => `<div class="card-container"><h3>Prestaciones de Ley</h3><p>Cálculos de Aguinaldo y Cesantía próximamente.</p></div>`,
+    benefits: async () => {
+        const employees = await Storage.get('employees');
+        return `
+            <div class="grid-2">
+                <div class="card-container">
+                    <h3>Calculadora de Prestaciones (CR)</h3>
+                    <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.5rem">Basado en legislación costarricense (Cálculo aproximado).</p>
+                    <div class="form-group">
+                        <label>Seleccionar Empleado</label>
+                        <select id="benefit-emp-select">
+                            <option value="">Seleccione...</option>
+                            ${employees.filter(e => e.status === 'Active').map(e => `<option value="${e.id}">${e.name}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div id="benefit-results" style="margin-top: 1.5rem">
+                         <div style="text-align: center; color: var(--text-muted)">Seleccione un empleado para ver la proyección anual</div>
+                    </div>
+                </div>
+
+                <div class="card-container" style="background: linear-gradient(135deg, var(--bg-card) 0%, #2d3748 100%); border: 1px solid var(--primary);">
+                    <h3 style="color: var(--primary)">Información Legal</h3>
+                    <ul style="margin: 1rem 0; color: var(--text-muted); line-height: 1.6; list-style-position: inside;">
+                        <li><strong>Aguinaldo:</strong> Un mes de salario promedio (1/12 de lo ganado en el año).</li>
+                        <li><strong>Vacaciones:</strong> 2 semanas por cada 50 trabajadas.</li>
+                        <li><strong>Cesantía:</strong> Indemnización en caso de despido sin causa.</li>
+                    </ul>
+                    <div style="padding: 1rem; background: rgba(99, 102, 241, 0.1); border-radius: 12px; border-left: 4px solid var(--primary)">
+                        <small>Estos cálculos son ilustrativos y se basan en el pago por hora actual multiplicado por una jornada estándar.</small>
+                    </div>
+                </div>
+            </div>
+        `;
+    },
+
+    init_benefits: async () => {
+        const select = document.getElementById('benefit-emp-select');
+        const results = document.getElementById('benefit-results');
+
+        if (select) {
+            select.onchange = async () => {
+                const empId = select.value;
+                if (!empId) return;
+
+                const employees = await Storage.get('employees');
+                const emp = employees.find(e => e.id == empId);
+                const rate = parseFloat(emp.hourly_rate);
+                const monthlySalary = rate * 8 * 26; // Est mntly (26 days)
+
+                const aguinaldo = monthlySalary;
+                const vacaciones = (monthlySalary / 30) * 14;
+                const cesantia = monthlySalary * 0.5; // Simplificado
+
+                results.innerHTML = `
+                    <div style="display: flex; flex-direction: column; gap: 1rem;">
+                        <div class="stat-card" style="background: rgba(255,255,255,0.02)">
+                            <h3 style="margin:0">Proyección Aguinaldo</h3>
+                            <div class="value" style="color: var(--success); font-size: 1.5rem">₡${Math.round(aguinaldo).toLocaleString()}</div>
+                        </div>
+                        <div class="stat-card" style="background: rgba(255,255,255,0.02)">
+                            <h3 style="margin:0">Proyección Vacaciones</h3>
+                            <div class="value" style="color: var(--warning); font-size: 1.5rem">₡${Math.round(vacaciones).toLocaleString()}</div>
+                        </div>
+                        <div class="stat-card" style="background: rgba(255,255,255,0.02)">
+                            <h3 style="margin:0">Proyección Cesantía</h3>
+                            <div class="value" style="color: var(--accent); font-size: 1.5rem">₡${Math.round(cesantia).toLocaleString()}</div>
+                        </div>
+                    </div>
+                `;
+            };
+        }
+    },
 
     import: async () => {
         return `
             <div class="card-container">
-                <div class="table-header">
+                <div style="margin-bottom: 2rem">
                     <h3>Importar Liquidación desde Excel</h3>
-                    <div style="font-size: 0.8rem; color: var(--text-muted)">Compatible con formato de reloj marcador (.xlsx)</div>
+                    <p style="color: var(--text-muted); font-size: 0.9rem">El sistema leerá los datos siguiendo el orden de columnas del formato estándar (Ini, Fin, Empleado, Horas...)</p>
                 </div>
                 
-                <div id="drop-zone" class="import-zone" style="border: 2px dashed var(--primary); padding: 3rem; text-align: center; border-radius: 12px; cursor: pointer; background: rgba(99,102,241,0.02)">
-                    <div style="font-size: 3rem; margin-bottom: 1rem">📊</div>
-                    <p>Arrastre su archivo Excel aquí o haga clic para seleccionar</p>
-                    <input type="file" id="excel-input" accept=".xlsx, .xls" style="display: none">
+                <div id="drop-zone" class="import-zone">
+                    <div style="font-size: 3rem; margin-bottom: 1rem">📄</div>
+                    <h4>Arrastra tu archivo aquí</h4>
+                    <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 0.5rem">o haz clic para seleccionar (.xlsx, .xls, .csv)</p>
+                    <input type="file" id="excel-input" accept=".xlsx, .xls, .csv" style="display: none">
                 </div>
 
-                <div id="import-preview-container" style="margin-top: 2rem; display: none">
+                <div id="import-preview-container" style="margin-top: 3rem; display: none">
                     <div class="table-header">
-                        <h4>Vista Previa de Importación</h4>
-                        <button class="btn btn-primary" id="execute-import-btn">Confirmar e Importar</button>
+                        <h3>Vista Previa de Importación</h3>
+                        <button class="btn btn-primary" id="execute-import-btn">✅ Confirmar e Importar</button>
                     </div>
                     <div class="table-container">
                         <table id="preview-table">
                             <thead>
                                 <tr>
+                                    <th>Ini</th>
+                                    <th>Fin</th>
                                     <th>Empleado</th>
                                     <th>Horas</th>
-                                    <th>Subtotal</th>
+                                    <th>Salario Total</th>
                                     <th>Estado</th>
                                 </tr>
                             </thead>
@@ -1182,62 +1310,69 @@ const Views = {
         let importedData = [];
 
         if (dropZone) dropZone.onclick = () => input.click();
-        if (dropZone) dropZone.ondragover = (e) => { e.preventDefault(); dropZone.style.borderColor = 'var(--success)'; };
-        if (dropZone) dropZone.ondragleave = () => dropZone.style.borderColor = 'var(--primary)';
-        if (dropZone) dropZone.ondrop = (e) => {
-            e.preventDefault();
-            const file = e.dataTransfer.files[0];
-            handleFile(file);
+
+        const excelDateToJSDate = (serial) => {
+            if (!serial || isNaN(serial)) return serial;
+            const utc_days = Math.floor(serial - 25569);
+            const utc_value = utc_days * 86400;
+            const date_info = new Date(utc_value * 1000);
+            return date_info.toISOString().split('T')[0];
         };
 
-        if (input) input.onchange = (e) => handleFile(e.target.files[0]);
-
-        const handleFile = (file) => {
+        if (input) input.onchange = (e) => {
+            const file = e.target.files[0];
             const reader = new FileReader();
             reader.onload = (e) => {
                 const data = new Uint8Array(e.target.result);
                 const workbook = XLSX.read(data, { type: 'array' });
                 const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-                const json = XLSX.utils.sheet_to_json(firstSheet);
-                processImportableData(json);
+                const sheetData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
+
+                // Skip header (row 1)
+                processImportableData(sheetData.slice(1).filter(r => r.length > 0));
             };
             reader.readAsArrayBuffer(file);
         };
 
-        const processImportableData = async (json) => {
+        const processImportableData = async (rows) => {
             const employees = await Storage.get('employees');
             const tbody = document.querySelector('#preview-table tbody');
             if (!tbody) return;
             tbody.innerHTML = '';
             importedData = [];
 
-            json.forEach(row => {
-                const name = row['Nombre'] || row['Empleado'] || row['Nombre Empleado'];
-                const hours = row['Horas'] || row['Total Horas'] || row['Horas Trabajadas'];
+            for (const row of rows) {
+                const name = row[2];
+                const hours = parseFloat(row[3]) || 0;
+                const amount = parseFloat(row[14]) || 0;
+                const dateIni = excelDateToJSDate(row[0]);
+                const dateFin = excelDateToJSDate(row[1]);
 
-                if (name && hours) {
-                    const emp = employees.find(e => e.name.toLowerCase().includes(name.toString().toLowerCase()));
-                    const status = emp ? '✅ Vinculado' : '⚠️ No encontrado';
-                    const amount = emp ? (parseFloat(hours) * parseFloat(emp.hourly_rate)) : 0;
+                if (name) {
+                    const emp = employees.find(e => e.name.toLowerCase() === String(name).toLowerCase());
+                    const statusText = emp ? '✅ Vinculado' : '⚠️ Autocrear';
 
                     importedData.push({
-                        name: name,
-                        hours: parseFloat(hours),
-                        employee_id: emp ? emp.id : null,
+                        name: String(name),
+                        hours: hours,
                         amount: amount,
-                        ccss: emp ? emp.apply_ccss : false
+                        date: dateFin || Storage.getLocalDate(),
+                        employee_id: emp ? emp.id : null,
+                        rate: emp ? parseFloat(emp.hourly_rate) : (amount / (hours || 1))
                     });
 
                     tbody.innerHTML += `
                         <tr>
-                            <td>${name}</td>
+                            <td>${dateIni || '-'}</td>
+                            <td>${dateFin || '-'}</td>
+                            <td style="font-weight:600">${name}</td>
                             <td>${hours}h</td>
                             <td>₡${Math.round(amount).toLocaleString()}</td>
-                            <td style="color: ${emp ? 'var(--success)' : 'var(--danger)'}">${status}</td>
+                            <td style="color: ${emp ? 'var(--success)' : 'var(--warning)'}">${statusText}</td>
                         </tr>
                     `;
                 }
-            });
+            }
 
             preview.style.display = 'block';
             dropZone.style.display = 'none';
@@ -1246,23 +1381,35 @@ const Views = {
         const executeBtn = document.getElementById('execute-import-btn');
         if (executeBtn) {
             executeBtn.onclick = async () => {
-                const valid = importedData.filter(d => d.employee_id);
-                if (valid.length === 0) return alert('No hay datos válidos para importar');
+                if (!confirm(`Se importarán ${importedData.length} registros. ¿Continuar?`)) return;
 
-                if (!confirm(`Se importarán ${valid.length} registros de pago directamente al historial. ¿Continuar?`)) return;
+                const employees = await Storage.get('employees');
 
-                for (const item of valid) {
-                    const gross = item.amount;
-                    const deduction = item.ccss ? (gross * 0.1067) : 0;
-                    const net = gross - deduction;
+                for (const item of importedData) {
+                    let empId = item.employee_id;
+
+                    // Auto-create employee if not found
+                    if (!empId) {
+                        const newEmp = await Storage.add('employees', {
+                            name: item.name,
+                            position: 'Importado',
+                            hourlyRate: item.rate || 3500,
+                            startDate: item.date,
+                            status: 'Active',
+                            applyCCSS: false,
+                            salaryHistory: []
+                        });
+                        empId = newEmp.id;
+                        employees.push(newEmp); // Add to local list to avoid duplicates in same run
+                    }
 
                     await Storage.add('payments', {
-                        employeeId: item.employee_id,
-                        date: Storage.getLocalDate(),
-                        amount: net,
+                        employeeId: parseInt(empId),
+                        date: item.date,
+                        amount: item.amount,
                         hours: item.hours,
-                        deductionCCSS: deduction,
-                        netAmount: net,
+                        deductionCCSS: 0,
+                        netAmount: item.amount,
                         isImported: true
                     });
                 }
@@ -1308,6 +1455,7 @@ const Views = {
 
             <dialog id="user-modal">
                 <div class="modal-content">
+                    <button class="modal-close-btn" onclick="document.getElementById('user-modal').close()">✕</button>
                     <h3 id="user-modal-title">Registrar Usuario</h3>
                     <form id="user-form" style="display: flex; flex-direction: column; gap: 15px; margin-top: 1rem">
                         <input type="hidden" name="id" id="user-id-input">
