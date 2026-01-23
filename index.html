@@ -43,7 +43,11 @@
                     </div>
                     <div class="login-input-group">
                         <label>Contraseña</label>
-                        <input type="password" id="password" placeholder="••••••••">
+                        <div class="password-wrapper">
+                            <input type="password" id="password" placeholder="••••••••">
+                            <button type="button" class="password-toggle"
+                                onclick="window.togglePassword('password')">👁️</button>
+                        </div>
                     </div>
                 </div>
 

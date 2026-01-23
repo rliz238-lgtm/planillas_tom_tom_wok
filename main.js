@@ -3,6 +3,20 @@
  * Restauración Completa desde Backup con Soporte PostgreSQL
  */
 
+// --- Utilities ---
+window.togglePassword = (id) => {
+    const el = document.getElementById(id);
+    if (!el) {
+        // Buscamos por nombre si no hay ID
+        const input = document.querySelector(`input[name="${id}"]`);
+        if (input) {
+            input.type = input.type === 'password' ? 'text' : 'password';
+        }
+    } else {
+        el.type = el.type === 'password' ? 'text' : 'password';
+    }
+};
+
 // --- Data Persistence Layer (API) ---
 const Storage = {
     SCHEMA: {
@@ -1844,7 +1858,10 @@ const Views = {
                         </div>
                         <div class="form-group">
                             <label>Contraseña (Opcional si edita)</label>
-                            <input type="password" name="password">
+                            <div class="password-wrapper">
+                                <input type="password" name="password" id="admin-password-input">
+                                <button type="button" class="password-toggle" onclick="window.togglePassword('admin-password-input')">👁️</button>
+                            </div>
                         </div>
                         <div style="display: flex; gap: 10px; margin-top: 20px;">
                             <button type="submit" class="btn btn-primary" style="flex:1">Guardar</button>

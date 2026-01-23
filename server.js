@@ -90,12 +90,14 @@ app.put('/api/users/:id', async (req, res) => {
     try {
         let query = 'UPDATE users SET username=$1, name=$2';
         let params = [username, name, id];
+
         if (password) {
             query += ', password=$3 WHERE id=$4';
             params = [username, name, password, id];
         } else {
             query += ' WHERE id=$3';
         }
+
         const result = await db.query(query + ' RETURNING id, username, name', params);
         res.json(result.rows[0]);
     } catch (err) {
