@@ -227,6 +227,29 @@ app.post('/api/logs', async (req, res) => {
     }
 });
 
+app.delete('/api/logs/:id', async (req, res) => {
+    try {
+        await db.query('DELETE FROM logs WHERE id = $1', [req.params.id]);
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.put('/api/logs/:id', async (req, res) => {
+    const { id } = req.params;
+    const { employeeId, date, hours, timeIn, timeOut, isImported, isPaid } = req.body;
+    try {
+        const result = await db.query(
+            'UPDATE logs SET employee_id=$1, date=$2, hours=$3, time_in=$4, time_out=$5, is_imported=$6, is_paid=$7 WHERE id=$8 RETURNING *',
+            [employeeId, date, hours, timeIn, timeOut, isImported, isPaid, id]
+        );
+        res.json(result.rows[0]);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 app.delete('/api/logs/employee/:employeeId', async (req, res) => {
     try {
         await db.query('DELETE FROM logs WHERE employee_id = $1', [req.params.employeeId]);
