@@ -1064,7 +1064,7 @@ const Views = {
                 <div class="table-header">
                     <h3>Resumen de Pagos Pendientes</h3>
                     <div style="display: flex; gap: 10px">
-                         <button class="btn" style="background: rgba(239,68,68,0.1); color: var(--danger)" onclick="window.clearAllLogs()">🗑️ Limpiar Todo</button>
+                         <button class="btn btn-danger" onclick="window.clearAllLogs()">🗑️ Limpiar Todo</button>
                          <button class="btn btn-primary" id="process-payroll-btn">💳 Pagar Seleccionados</button>
                     </div>
                 </div>
@@ -1101,8 +1101,8 @@ const Views = {
                 <div class="table-header">
                     <h3>Historial de Pagos</h3>
                     <div style="display: flex; gap: 10px">
-                        <button class="btn" style="background: rgba(16,185,129,0.1); color: var(--success)" onclick="window.exportPayments()">📥 Excel</button>
-                        <button class="btn" style="background: rgba(239,68,68,0.1); color: var(--danger)" id="delete-selected-payments">🗑️ Eliminar</button>
+                        <button class="btn btn-warning" onclick="window.exportPayments()">📥 Excel</button>
+                        <button class="btn btn-danger" id="delete-selected-payments">🗑️ Eliminar</button>
                     </div>
                 </div>
                 <div class="table-container">
@@ -1130,8 +1130,8 @@ const Views = {
                                         <td style="color: var(--success); font-weight: 700;">₡${Math.round(p.amount).toLocaleString()}</td>
                                         <td>${p.is_imported ? '✅' : '❌'}</td>
                                         <td style="display: flex; gap: 5px">
-                                            <button class="btn" style="padding: 5px 10px" onclick="window.shareWhatsApp('${p.id}')">📲</button>
-                                            <button class="btn" style="padding: 5px 10px; background: rgba(239,68,68,0.1)" onclick="window.deletePayment('${p.id}')">🗑️</button>
+                                            <button class="btn btn-secondary" style="padding: 5px 10px" onclick="window.shareWhatsApp('${p.id}')">📲</button>
+                                            <button class="btn btn-danger" style="padding: 5px 10px" onclick="window.deletePayment('${p.id}')">🗑️</button>
                                         </td>
                                     </tr>
                                 `;
@@ -1673,10 +1673,10 @@ const Views = {
                     <p style="color: var(--text-muted); font-size: 0.9rem">Use estas opciones para corregir errores de importación o reiniciar el sistema. <strong>Cuidado: Esta acción es irreversible.</strong></p>
                 </div>
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
-                    <button class="btn" style="background: rgba(239, 68, 68, 0.1); color: var(--danger); border: 1px solid rgba(239, 68, 68, 0.2);" onclick="window.clearTable('logs')">🗑️ Borrar Horas Pendientes</button>
-                    <button class="btn" style="background: rgba(239, 68, 68, 0.1); color: var(--danger); border: 1px solid rgba(239, 68, 68, 0.2);" onclick="window.clearTable('payments')">🗑️ Borrar Historial Pagos</button>
-                    <button class="btn" style="background: rgba(239, 68, 68, 0.1); color: var(--danger); border: 1px solid rgba(239, 68, 68, 0.2);" onclick="window.clearTable('employees')">🗑️ Borrar Todos los Empleados</button>
-                    <button class="btn" style="background: var(--danger); color: white;" onclick="window.clearTable('all')">🔥 REINICIO TOTAL</button>
+                    <button class="btn btn-danger" onclick="window.clearTable('logs')">🗑️ Borrar Horas Pendientes</button>
+                    <button class="btn btn-danger" onclick="window.clearTable('payments')">🗑️ Borrar Historial Pagos</button>
+                    <button class="btn btn-danger" onclick="window.clearTable('employees')">🗑️ Borrar Todos los Empleados</button>
+                    <button class="btn" style="background: var(--danger); color: white; box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3);" onclick="window.clearTable('all')">🔥 REINICIO TOTAL</button>
                 </div>
             </div>
 
