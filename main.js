@@ -1364,10 +1364,17 @@ const Views = {
                     const file = e.dataTransfer.files[0];
                     const reader = new FileReader();
                     reader.onload = (ev) => {
-                        const data = new Uint8Array(ev.target.result);
-                        const workbook = XLSX.read(data, { type: 'array' });
-                        const sheetData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1 });
-                        processImportableData(sheetData.slice(1).filter(r => r.length > 0));
+                        try {
+                            const data = new Uint8Array(ev.target.result);
+                            const workbook = XLSX.read(data, { type: 'array' });
+                            const sheetData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1 });
+                            const rows = sheetData.slice(1).filter(r => r && Array.isArray(r) && r.length > 0);
+                            if (rows.length === 0) alert("No se encontraron filas de datos en el archivo.");
+                            processImportableData(rows);
+                        } catch (err) {
+                            console.error(err);
+                            alert("Error al procesar el archivo: " + err.message);
+                        }
                     };
                     reader.readAsArrayBuffer(file);
                 }
@@ -1376,15 +1383,20 @@ const Views = {
 
         if (input) input.onchange = (e) => {
             const file = e.target.files[0];
+            if (!file) return;
             const reader = new FileReader();
-            reader.onload = (e) => {
-                const data = new Uint8Array(e.target.result);
-                const workbook = XLSX.read(data, { type: 'array' });
-                const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-                const sheetData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
-
-                // Skip header (row 1)
-                processImportableData(sheetData.slice(1).filter(r => r.length > 0));
+            reader.onload = (ev) => {
+                try {
+                    const data = new Uint8Array(ev.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const sheetData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1 });
+                    const rows = sheetData.slice(1).filter(r => r && Array.isArray(r) && r.length > 0);
+                    if (rows.length === 0) alert("No se encontraron filas de datos en el archivo.");
+                    processImportableData(rows);
+                } catch (err) {
+                    console.error(err);
+                    alert("Error al procesar el archivo: " + err.message);
+                }
             };
             reader.readAsArrayBuffer(file);
         };
