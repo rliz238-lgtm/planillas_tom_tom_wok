@@ -827,7 +827,11 @@ const Views = {
             }
 
             modal.close();
-            App.renderView('employees');
+            if (App.currentView === 'employeeDetail') {
+                App.renderView('employeeDetail', id);
+            } else {
+                App.renderView('employees');
+            }
         };
     },
 
@@ -941,75 +945,12 @@ const Views = {
                 </div>
             </div>
 
-            <dialog id="edit-detail-modal">
-                <div class="modal-content">
-                    <button class="modal-close-btn" onclick="document.getElementById('edit-detail-modal').close()">✕</button>
-                    <h3>Actualizar Datos de ${emp.name}</h3>
-                    <form id="edit-detail-form" style="display: flex; flex-direction: column; gap: 15px; margin-top: 1rem">
-                        <div class="form-group">
-                            <label>Nuevo Pago por Hora (₡)</label>
-                            <input type="number" name="newRate" value="${emp.hourly_rate}" required>
-                        </div>
-                        <div class="form-group">
-                            <label>Motivo del Cambio</label>
-                            <input type="text" name="reason" placeholder="Ej: Ajuste anual, Ascenso...">
-                        </div>
-                        <div class="form-group" style="display: flex; align-items: center; gap: 10px; margin-top: 10px">
-                            <input type="checkbox" name="applyCCSS" id="check-ccss-detail" ${emp.apply_ccss ? 'checked' : ''} style="width: 20px; height: 20px">
-                            <label for="check-ccss-detail" style="margin:0">Aplicar Rebajo CCSS</label>
-                        </div>
-                        <div style="display: flex; gap: 10px; margin-top: 20px;">
-                            <button type="submit" class="btn btn-primary" style="flex:1">Actualizar</button>
-                            <button type="button" class="btn" style="flex:1" onclick="document.getElementById('edit-detail-modal').close()">Cerrar</button>
-                        </div>
-                    </form>
-                </div>
-            </dialog>
+            <!-- Eliminado modal local para usar el global window.editEmployee -->
         `;
     },
 
     init_employeeDetail: async (id) => {
-        const modal = document.getElementById('edit-detail-modal');
-        const form = document.getElementById('edit-detail-form');
-
-        // El botón btn-primary que agregamos en el render anterior
-        const btn = document.querySelector('[onclick*="window.editEmployee"]');
-
-        if (btn) btn.onclick = () => modal.showModal();
-
-        if (form) {
-            form.onsubmit = async (e) => {
-                e.preventDefault();
-                const employees = await Storage.get('employees');
-                const emp = employees.find(e => e.id == id);
-                const newRate = parseFloat(form.newRate.value);
-                const reason = form.reason.value || 'Actualización de perfil';
-                const applyCCSS = form.applyCCSS.checked;
-
-                const history = emp.salary_history || [];
-                // If rate changed, add to history
-                if (newRate !== parseFloat(emp.hourly_rate)) {
-                    history.push({
-                        date: Storage.getLocalDate(),
-                        rate: newRate,
-                        reason: reason
-                    });
-                }
-
-                await Storage.update('employees', id, {
-                    ...emp,
-                    hourlyRate: newRate,
-                    applyCCSS: applyCCSS,
-                    salaryHistory: history,
-                    startDate: emp.start_date, // Keep originals
-                    endDate: emp.end_date,
-                    status: emp.status
-                });
-
-                modal.close();
-                App.renderView('employeeDetail', id);
-            };
-        }
+        // No necesitamos inicializar nada aquí ya que usamos window.editEmployee que es global
     },
 
     calculator: async () => {
