@@ -1338,6 +1338,47 @@ const Views = {
             };
         }
 
+        window.deleteLog = async (id) => {
+            if (!confirm('¿Desea eliminar este registro de horas?')) return;
+            await Storage.delete('logs', id);
+            App.renderView('payroll');
+        };
+
+        window.clearEmpLogs = async (id) => {
+            if (!confirm('¿Borrar todas las horas pendientes de este empleado?')) return;
+            await Storage.deleteLogsByEmployee(id);
+            App.renderView('payroll');
+        };
+
+        window.clearAllLogs = async () => {
+            if (!confirm('Esta acción borrará TODAS las horas registradas de TODOS los empleados. ¿Proceder?')) return;
+            const employees = await Storage.get('employees');
+            for (const emp of employees) {
+                await Storage.deleteLogsByEmployee(emp.id);
+            }
+            App.renderView('payroll');
+        };
+
+        window.deletePayment = async (id) => {
+            if (!confirm('¿Eliminar este registro de pago?')) return;
+            await Storage.delete('payments', id);
+            App.renderView('payroll');
+        };
+
+        const deleteSelectedBtn = document.getElementById('delete-selected-payments');
+        if (deleteSelectedBtn) {
+            deleteSelectedBtn.onclick = async () => {
+                const selected = document.querySelectorAll('.payment-check:checked');
+                if (selected.length === 0) return;
+                if (!confirm(`¿Eliminar ${selected.length} pagos seleccionados?`)) return;
+
+                for (const check of selected) {
+                    await Storage.delete('payments', check.dataset.id);
+                }
+                App.renderView('payroll');
+            };
+        }
+
         // --- Modales de Detalle ---
         window.showPayrollDetail = (data) => {
             const modal = document.getElementById('payroll-detail-modal');
@@ -1448,10 +1489,12 @@ const Views = {
             const data = payments.map(p => {
                 const emp = employees.find(e => e.id == p.employee_id);
                 return {
-                    Fecha: p.date.split('T')[0],
+                    Fecha_Pago: p.date.split('T')[0],
                     Empleado: emp ? emp.name : '—',
+                    Desde: p.start_date ? p.start_date.split('T')[0] : '—',
+                    Hasta: p.end_date ? p.end_date.split('T')[0] : '—',
                     Horas: p.hours,
-                    Monto: p.amount,
+                    Monto_Neto: p.amount,
                     CCSS: p.deduction_ccss,
                     Importado: p.is_imported ? 'Sí' : 'No'
                 };
