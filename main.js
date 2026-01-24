@@ -1201,7 +1201,8 @@ const Views = {
                                     <td style="color: var(--danger)">₡${Math.round(ps.deduction).toLocaleString()}</td>
                                     <td style="color: var(--success); font-weight: 700;">₡${Math.round(ps.net).toLocaleString()}</td>
                                     <td style="display: flex; gap: 5px">
-                                        <button class="btn btn-primary" title="Ver Detalle / Pagar por Línea" style="padding: 5px 10px" onclick="window.showPayrollDetail(${ps.empId})">👁️</button>
+                                        <button class="btn btn-primary" title="Ver Detalle / Pagar Día por Día" style="padding: 5px 10px" onclick="window.showPayrollDetail(${ps.empId})">👁️</button>
+                                        <button class="btn btn-success" title="Pagar Todo el Periodo" style="padding: 5px 10px; background: var(--success);" onclick="window.payEmployeeGroup(${ps.empId})">💰</button>
                                         <button class="btn btn-secondary" title="Enviar WhatsApp" style="padding: 5px 10px" onclick="window.shareWhatsAppPending(${ps.empId})">📲</button>
                                         <button class="btn btn-danger" onclick="window.clearEmpLogs(${ps.empId})" style="padding: 4px 8px; font-size: 0.8rem" title="Limpiar horas de este empleado">🗑️</button>
                                     </td>
@@ -1383,6 +1384,47 @@ const Views = {
             };
         }
 
+        // Pagar grupo completo de un empleado desde la tabla principal
+        window.payEmployeeGroup = async (empId) => {
+            const data = window._pendingPayrollData ? window._pendingPayrollData[empId] : null;
+            if (!data) return alert("No se encontraron los datos del empleado. Por favor recargue.");
+
+            if (!confirm(`¿Procesar el pago total de ₡${Math.round(data.net).toLocaleString()} para ${data.name}?`)) return;
+
+            Storage.showLoader(true, 'Procesando pago total...');
+            try {
+                const today = Storage.getLocalDate();
+                const logIds = data.logs.map(l => l.id);
+
+                const payResult = await Storage.add('payments', {
+                    employeeId: parseInt(empId),
+                    date: today,
+                    amount: data.net,
+                    hours: data.hours,
+                    deductionCCSS: data.deduction,
+                    netAmount: data.net,
+                    startDate: data.startDate.split('T')[0],
+                    endDate: data.endDate.split('T')[0],
+                    logsDetail: data.logs,
+                    isImported: false
+                });
+
+                if (payResult && payResult.success) {
+                    for (const id of logIds) {
+                        await Storage.delete('logs', id);
+                    }
+                    App.renderView('payroll');
+                } else {
+                    alert("Error guardando el pago: " + (payResult.error || "Desconocido"));
+                }
+            } catch (err) {
+                console.error(err);
+                alert("Error crítico al procesar el pago");
+            } finally {
+                Storage.showLoader(false);
+            }
+        };
+
         // Pagar por línea (día individual)
         window.payLine = async (logId, empId, date, amount, hours, deduction) => {
             if (!confirm(`¿Procesar el pago de este día individual?`)) return;
@@ -1421,36 +1463,43 @@ const Views = {
 
         // --- Modales de Detalle ---
         window.showPayrollDetail = (empId) => {
-            const data = window._pendingPayrollData ? window._pendingPayrollData[empId] : null;
-            if (!data) return;
+            try {
+                const data = window._pendingPayrollData ? window._pendingPayrollData[empId] : null;
+                if (!data) return console.warn("No data for empId:", empId);
 
-            const modal = document.getElementById('payroll-detail-modal');
-            const title = document.getElementById('payroll-detail-title');
-            const info = document.getElementById('payroll-detail-info');
-            const body = document.getElementById('payroll-detail-body');
+                const modal = document.getElementById('payroll-detail-modal');
+                if (!modal) return console.error("Modal 'payroll-detail-modal' not found");
 
-            title.textContent = `Detalle de Horas Pendientes: ${data.name}`;
-            info.innerHTML = `
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                    <div><strong>Total Pendiente:</strong> ₡${Math.round(data.net).toLocaleString()}</div>
-                    <div><strong>Horas Totales:</strong> ${data.hours.toFixed(1)}h</div>
-                </div>
-            `;
+                const title = document.getElementById('payroll-detail-title');
+                const info = document.getElementById('payroll-detail-info');
+                const body = document.getElementById('payroll-detail-body');
 
-            body.innerHTML = data.logs.sort((a, b) => new Date(b.date) - new Date(a.date)).map(l => `
-                <tr>
-                    <td>${l.date.split('T')[0]}</td>
-                    <td>${l.time_in || '—'}</td>
-                    <td>${l.time_out || '—'}</td>
-                    <td style="font-weight:600">${parseFloat(l.hours).toFixed(1)}h</td>
-                    <td style="display: flex; gap: 5px; align-items: center">
-                        <span style="color: var(--success); font-weight: 600; margin-right: 10px;">₡${Math.round(l.net).toLocaleString()}</span>
-                        <button class="btn btn-primary" style="padding: 4px 8px; font-size: 0.75rem" onclick="window.payLine(${l.id}, ${l.employee_id}, '${l.date.split('T')[0]}', ${l.net}, ${l.hours}, ${l.deduction})">Pagar Día</button>
-                    </td>
-                </tr>
-            `).join('');
+                title.textContent = `Detalle de Horas Pendientes: ${data.name}`;
+                info.innerHTML = `
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div><strong>Total Pendiente:</strong> ₡${Math.round(data.net).toLocaleString()}</div>
+                        <div><strong>Horas Totales:</strong> ${data.hours.toFixed(1)}h</div>
+                    </div>
+                `;
 
-            modal.showModal();
+                body.innerHTML = data.logs.sort((a, b) => new Date(b.date) - new Date(a.date)).map(l => `
+                    <tr>
+                        <td>${l.date.split('T')[0]}</td>
+                        <td>${l.time_in || '—'}</td>
+                        <td>${l.time_out || '—'}</td>
+                        <td style="font-weight:600">${parseFloat(l.hours).toFixed(1)}h</td>
+                        <td style="display: flex; gap: 5px; align-items: center">
+                            <span style="color: var(--success); font-weight: 600; margin-right: 10px;">₡${Math.round(l.net).toLocaleString()}</span>
+                            <button class="btn btn-primary" style="padding: 4px 8px; font-size: 0.75rem" onclick="window.payLine(${l.id}, ${l.employee_id}, '${l.date.split('T')[0]}', ${l.net}, ${l.hours}, ${l.deduction})">Pagar Día</button>
+                        </td>
+                    </tr>
+                `).join('');
+
+                modal.showModal();
+            } catch (err) {
+                console.error("Error opening payroll detail:", err);
+                alert("Error al abrir el detalle del empleado.");
+            }
         };
 
         window.showPaymentHistoryDetail = async (paymentId) => {
