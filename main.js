@@ -5,6 +5,9 @@
 // --- Payroll Global Helpers (Top Level) ---
 window._pendingPayrollData = {};
 const PayrollHelpers = {
+    // Icono minimalista de ojo
+    EYE_ICON: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:-2px"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" /></svg>`,
+
     showPayrollDetail: (empId) => {
         const data = window._pendingPayrollData[empId];
         if (!data) return alert("Error: Datos no encontrados. Recargue la página.");
@@ -830,7 +833,7 @@ const Views = {
                                     <td style="padding: 1.25rem 1rem;">
                                         <div style="display: flex; gap: 8px; align-items: center;">
                                             <button class="btn" style="padding: 4px 8px; background: rgba(99,102,241,0.1); border: 1px solid rgba(99,102,241,0.2)" onclick="window.editEmployee('${emp.id}')" title="Editar">✏️</button>
-                                            <button class="btn" style="padding: 4px 8px; background: rgba(99,102,241,0.1); border: 1px solid rgba(99,102,241,0.2)" onclick="App.switchView('employeeDetail', '${emp.id}')" title="Ver Detalle">👁️</button>
+                                            <button class="btn" style="padding: 4px 8px; background: rgba(99,102,241,0.1); border: 1px solid rgba(99,102,241,0.2)" onclick="App.switchView('employeeDetail', '${emp.id}')" title="Ver Detalle">${PayrollHelpers.EYE_ICON}</button>
                                             <button class="btn" style="padding: 4px 8px; background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.2)" onclick="window.deleteEmployee('${emp.id}')" title="Eliminar">🗑️</button>
                                         </div>
                                     </td>
@@ -1304,7 +1307,7 @@ const Views = {
                                     <td style="color: var(--danger)">₡${Math.round(ps.deduction).toLocaleString()}</td>
                                     <td style="color: var(--success); font-weight: 700;">₡${Math.round(ps.net).toLocaleString()}</td>
                                     <td style="display: flex; gap: 5px">
-                                        <button class="btn btn-primary" title="Ver Detalle" style="padding: 5px 10px" onclick="PayrollHelpers.showPayrollDetail(${ps.empId})">👁️</button>
+                                        <button class="btn btn-primary" title="Ver Detalle" style="padding: 5px 10px" onclick="PayrollHelpers.showPayrollDetail(${ps.empId})">${PayrollHelpers.EYE_ICON}</button>
                                         <button class="btn btn-success" title="Pagar Todo" style="padding: 5px 10px; background: var(--success);" onclick="PayrollHelpers.payEmployeeGroup(${ps.empId})">💰</button>
                                         <button class="btn btn-whatsapp" title="WhatsApp" style="padding: 5px 10px" onclick="PayrollHelpers.shareWhatsAppPending(${ps.empId})">✉️</button>
                                         <button class="btn btn-danger" onclick="window.clearEmpLogs(${ps.empId})" style="padding: 4px 8px; font-size: 0.8rem" title="Limpiar">🗑️</button>
@@ -1357,7 +1360,7 @@ const Views = {
                                         <td>${parseFloat(p.hours || 0).toFixed(1)}h</td>
                                         <td style="color: var(--success); font-weight: 700;">₡${Math.round(p.amount).toLocaleString()}</td>
                                         <td style="display: flex; gap: 5px">
-                                            <button class="btn btn-primary" title="Ver Detalle" style="padding: 5px 10px" onclick="PayrollHelpers.showPaymentHistoryDetail('${p.id}')">👁️</button>
+                                            <button class="btn btn-primary" title="Ver Detalle" style="padding: 5px 10px" onclick="PayrollHelpers.showPaymentHistoryDetail('${p.id}')">${PayrollHelpers.EYE_ICON}</button>
                                             <button class="btn btn-whatsapp" title="WhatsApp" style="padding: 5px 10px" onclick="window.shareWhatsApp('${p.id}')">✉️</button>
                                             <button class="btn btn-danger" style="padding: 5px 10px" onclick="window.deletePayment('${p.id}')">🗑️</button>
                                         </td>
@@ -1895,7 +1898,7 @@ const Views = {
                             <label>Contraseña (Opcional si edita)</label>
                             <div class="password-wrapper">
                                 <input type="password" name="password" id="admin-password-input">
-                                <button type="button" class="password-toggle" onclick="window.togglePassword('admin-password-input')">👁️</button>
+                                <button type="button" class="password-toggle" onclick="window.togglePassword('admin-password-input')">${PayrollHelpers.EYE_ICON}</button>
                             </div>
                         </div>
                         <div style="display: flex; gap: 10px; margin-top: 20px;">
