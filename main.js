@@ -24,6 +24,7 @@ const PayrollHelpers = {
                 <td style="display:flex; gap:5px; align-items:center;">
                     <span style="color:var(--success); font-weight:600;">₡${Math.round(l.net).toLocaleString()}</span>
                     <button class="btn btn-primary" style="padding:4px 8px; font-size:0.75rem;" onclick="PayrollHelpers.payLine(${l.id},${l.employee_id},'${l.date.split('T')[0]}',${l.net},${l.hours},${l.deduction})">Pagar</button>
+                    <button class="btn btn-danger" style="padding:4px 8px; font-size:0.75rem;" onclick="window.deleteLog(${l.id})">🗑️</button>
                 </td>
             </tr>`).join('');
         modal.showModal();
@@ -1346,13 +1347,44 @@ const Views = {
         const allPy = document.getElementById('select-all-payments');
         if (allPy) allPy.onclick = () => document.querySelectorAll('.payment-check').forEach(c => c.checked = allPy.checked);
 
-        window.deletePayment = async (id) => { if (confirm("¿Eliminar?")) { await Storage.delete('payments', id); App.renderView('payroll'); } };
-        window.clearAllLogs = async () => { if (confirm("¿Borrar TODO?")) { await fetch('/api/maintenance/clear-all?target=logs', { method: 'DELETE' }); App.renderView('payroll'); } };
+        // --- Funciones de Eliminación ---
+        window.deletePayment = async (id) => {
+            if (confirm("¿Está seguro de eliminar este registro de pago?")) {
+                await Storage.delete('payments', id);
+                App.renderView('payroll');
+            }
+        };
+
+        window.deleteLog = async (id) => {
+            if (confirm("¿Eliminar este registro de horas?")) {
+                await Storage.delete('logs', id);
+                // Si el modal está abierto, lo cerramos para evitar inconsistencias
+                const modal = document.getElementById('payroll-detail-modal');
+                if (modal && modal.open) modal.close();
+                App.renderView('payroll');
+            }
+        };
+
+        window.clearEmpLogs = async (empId) => {
+            if (confirm("¿Eliminar TODAS las horas pendientes de este empleado?")) {
+                Storage.showLoader(true, 'Eliminando...');
+                await Storage.deleteLogsByEmployee(empId);
+                Storage.showLoader(false);
+                App.renderView('payroll');
+            }
+        };
+
+        window.clearAllLogs = async () => {
+            if (confirm("¿Borrar TODAS las horas pendientes del sistema?")) {
+                await fetch('/api/maintenance/clear-all?target=logs', { method: 'DELETE' });
+                App.renderView('payroll');
+            }
+        };
 
         const delSel = document.getElementById('delete-selected-payments');
         if (delSel) delSel.onclick = async () => {
             const checks = document.querySelectorAll('.payment-check:checked');
-            if (!checks.length || !confirm("¿Borrar seleccionados?")) return;
+            if (!checks.length || !confirm("¿Borrar los pagos seleccionados?")) return;
             for (const c of checks) await Storage.delete('payments', c.dataset.id);
             App.renderView('payroll');
         };
@@ -1362,6 +1394,7 @@ const Views = {
         window.showPaymentHistoryDetail = PayrollHelpers.showPaymentHistoryDetail;
         window.payEmployeeGroup = PayrollHelpers.payEmployeeGroup;
         window.shareWhatsAppPending = PayrollHelpers.shareWhatsAppPending;
+        window.payLine = PayrollHelpers.payLine;
     },
 
     shareWhatsApp: async (id) => {
