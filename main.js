@@ -693,7 +693,7 @@ const Views = {
                         </div>
                         <div style="display: flex; gap: 10px; margin-top: 20px;">
                             <button type="submit" class="btn btn-primary" style="flex:1">Guardar</button>
-                            <button type="button" class="btn" style="flex:1; background: rgba(255,255,255,0.1)" onclick="document.getElementById('employee-modal').close()">Cancelar</button>
+                            <button type="button" class="btn btn-secondary" style="flex:1" onclick="document.getElementById('employee-modal').close()">Cancelar</button>
                         </div>
                     </form>
                 </div>
@@ -1531,7 +1531,7 @@ const Views = {
                     <div class="table-header">
                         <h3>Vista Previa de Importación</h3>
                         <div style="display: flex; gap: 10px">
-                            <button class="btn" style="background: rgba(255,255,255,0.05)" onclick="App.renderView('import')">Cancelar</button>
+                            <button class="btn btn-secondary" onclick="App.renderView('import')">Cancelar</button>
                             <button class="btn btn-primary" id="execute-import-btn">✅ Confirmar e Importar</button>
                         </div>
                     </div>
@@ -1821,8 +1821,8 @@ const Views = {
                                     <td>${u.name}</td>
                                     <td>${u.username}</td>
                                     <td>
-                                        <button class="btn" style="padding: 4px 8px; background: rgba(99,102,241,0.1)" onclick="window.openUserModal('${u.id}')">✏️</button>
-                                        <button class="btn" style="padding: 4px 8px; background: rgba(239,68,68,0.1)" onclick="window.deleteUser('${u.id}')">🗑️</button>
+                                        <button class="btn btn-secondary" style="padding: 4px 8px;" onclick="window.openUserModal('${u.id}')">✏️</button>
+                                        <button class="btn btn-danger" style="padding: 4px 8px;" onclick="window.deleteUser('${u.id}')">🗑️</button>
                                     </td>
                                 </tr>
                             `).join('')}
@@ -1865,7 +1865,7 @@ const Views = {
                         </div>
                         <div style="display: flex; gap: 10px; margin-top: 20px;">
                             <button type="submit" class="btn btn-primary" style="flex:1">Guardar</button>
-                            <button type="button" class="btn" style="flex:1" onclick="document.getElementById('user-modal').close()">Cerrar</button>
+                            <button type="button" class="btn btn-secondary" style="flex:1" onclick="document.getElementById('user-modal').close()">Cerrar</button>
                         </div>
                     </form>
                 </div>
