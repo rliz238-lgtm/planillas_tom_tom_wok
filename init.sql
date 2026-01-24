@@ -69,6 +69,9 @@ ALTER TABLE payments ADD COLUMN IF NOT EXISTS hours DECIMAL(10, 2) DEFAULT 0;
 ALTER TABLE payments ADD COLUMN IF NOT EXISTS deduction_ccss DECIMAL(12, 2) DEFAULT 0;
 ALTER TABLE payments ADD COLUMN IF NOT EXISTS net_amount DECIMAL(12, 2) DEFAULT 0;
 ALTER TABLE payments ADD COLUMN IF NOT EXISTS is_imported BOOLEAN DEFAULT FALSE;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS start_date DATE;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS end_date DATE;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS logs_detail JSONB DEFAULT '[]'::jsonb;
 
 -- Insertar usuario admin por defecto
 INSERT INTO users (username, password, name) 

@@ -272,11 +272,11 @@ app.get('/api/payments', async (req, res) => {
 });
 
 app.post('/api/payments', async (req, res) => {
-    const { employeeId, amount, hours, deductionCCSS, netAmount, date, isImported } = req.body;
+    const { employeeId, amount, hours, deductionCCSS, netAmount, date, isImported, logsDetail, startDate, endDate } = req.body;
     try {
         const result = await db.query(
-            'INSERT INTO payments (employee_id, amount, hours, deduction_ccss, net_amount, date, is_imported) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
-            [employeeId, amount, hours || 0, deductionCCSS || 0, netAmount || amount, date, isImported || false]
+            'INSERT INTO payments (employee_id, amount, hours, deduction_ccss, net_amount, date, is_imported, logs_detail, start_date, end_date) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *',
+            [employeeId, amount, hours || 0, deductionCCSS || 0, netAmount || amount, date, isImported || false, JSON.stringify(logsDetail || []), startDate || null, endDate || null]
         );
         res.json(result.rows[0]);
     } catch (err) {
