@@ -229,6 +229,109 @@ const App = {
         }
 
         this.setupMobileMenu();
+        this.setupEmployeeModal();
+    },
+
+    setupEmployeeModal() {
+        const modal = document.getElementById('employee-modal');
+        const form = document.getElementById('employee-form');
+        if (!modal || !form) return;
+
+        const modalTitle = document.getElementById('modal-title');
+        const editIdInput = document.getElementById('edit-emp-id');
+
+        window.editEmployee = async (id) => {
+            const employees = await Storage.get('employees');
+            const emp = employees.find(e => e.id == id);
+            if (!emp) return;
+
+            if (modalTitle) modalTitle.textContent = 'Editar Empleado';
+            if (editIdInput) editIdInput.value = emp.id;
+
+            form.name.value = emp.name;
+            form.cedula.value = emp.cedula || '';
+            form.phone.value = emp.phone || '';
+            form.pin.value = emp.pin || '';
+            form.position.value = emp.position;
+            form.hourlyRate.value = emp.hourly_rate;
+            form.status.value = emp.status;
+            form.startDate.value = emp.start_date ? emp.start_date.split('T')[0] : '';
+            form.endDate.value = emp.end_date ? emp.end_date.split('T')[0] : '';
+            form.applyCCSS.checked = !!emp.apply_ccss;
+
+            modal.showModal();
+        };
+
+        window.deleteEmployee = async (id) => {
+            const employees = await Storage.get('employees');
+            const emp = employees.find(e => e.id == id);
+            if (!emp) return;
+
+            const modalHtml = `
+                <dialog id="delete-confirm-modal" class="modal">
+                    <div class="modal-content" style="max-width: 400px; text-align: center;">
+                        <button class="modal-close-btn" onclick="document.getElementById('delete-confirm-modal').close(); document.getElementById('delete-confirm-modal').remove();">✕</button>
+                        <div style="font-size: 3rem; margin-bottom: 1rem">⚠️</div>
+                        <h3 style="color: var(--danger); margin-bottom: 1rem">¿Eliminar Empleado?</h3>
+                        <p style="color: var(--text-muted); margin-bottom: 2rem">Esta acción eliminará a <strong>${emp.name}</strong> y todos sus registros. No se puede deshacer.</p>
+                        <div style="display: flex; gap: 10px;">
+                            <button id="confirm-delete-btn" class="btn" style="background: var(--danger); flex: 1">Eliminar</button>
+                            <button class="btn" style="flex: 1" onclick="document.getElementById('delete-confirm-modal').close(); document.getElementById('delete-confirm-modal').remove();">Cancelar</button>
+                        </div>
+                    </div>
+                </dialog>
+            `;
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+            const deleteModal = document.getElementById('delete-confirm-modal');
+            deleteModal.showModal();
+
+            document.getElementById('confirm-delete-btn').onclick = async () => {
+                if (await Storage.delete('employees', id)) {
+                    deleteModal.close();
+                    deleteModal.remove();
+                    if (App.currentView === 'employeeDetail') {
+                        App.switchView('employees');
+                    } else {
+                        App.renderView('employees');
+                    }
+                }
+            };
+        };
+
+        form.onsubmit = async (e) => {
+            e.preventDefault();
+            const formData = new FormData(form);
+            const id = editIdInput.value;
+            const empData = {
+                name: formData.get('name'),
+                cedula: formData.get('cedula'),
+                phone: formData.get('phone'),
+                pin: formData.get('pin'),
+                position: formData.get('position'),
+                hourlyRate: parseFloat(formData.get('hourlyRate')),
+                startDate: formData.get('startDate'),
+                endDate: formData.get('endDate') || null,
+                status: formData.get('status'),
+                applyCCSS: form.applyCCSS.checked,
+                salaryHistory: []
+            };
+
+            if (id) {
+                const employees = await Storage.get('employees');
+                const oldEmp = employees.find(e => e.id == id);
+                if (oldEmp) empData.salaryHistory = oldEmp.salary_history || [];
+                await Storage.update('employees', id, empData);
+            } else {
+                await Storage.add('employees', empData);
+            }
+
+            modal.close();
+            if (App.currentView === 'employeeDetail') {
+                App.renderView('employeeDetail', id);
+            } else {
+                App.renderView('employees');
+            }
+        };
     },
 
     setupMobileMenu() {
@@ -638,68 +741,7 @@ const Views = {
                     </table>
                 </div>
             </div>
-
-            <dialog id="employee-modal">
-                <div class="modal-content" style="max-height: 85vh; overflow-y: auto;">
-                    <button class="modal-close-btn" onclick="document.getElementById('employee-modal').close()">✕</button>
-                    <h3 id="modal-title" style="margin-bottom: 1.5rem">Registrar Empleado</h3>
-                    <form id="employee-form" style="display: flex; flex-direction: column; gap: 15px;">
-                        <input type="hidden" name="id" id="edit-emp-id">
-                        <div class="form-group">
-                            <label>Nombre Completo</label>
-                            <input type="text" name="name" placeholder="Ej: Juan Pérez" required>
-                        </div>
-                        <div class="form-group">
-                            <label>Número de Cédula</label>
-                            <input type="text" name="cedula" placeholder="Ej: 1-2345-6789">
-                        </div>
-                        <div class="form-group">
-                            <label>Teléfono (WhatsApp)</label>
-                            <input type="text" name="phone" placeholder="Ej: 50688888888">
-                        </div>
-                        <div class="form-group" style="background: rgba(99,102,241,0.05); padding: 1rem; border-radius: 8px; border: 1px solid rgba(99,102,241,0.3);">
-                            <label style="color: var(--primary); font-weight: 600;">🔐 PIN de Acceso al Portal (4 dígitos)</label>
-                            <input type="text" name="pin" placeholder="Ej: 1234" maxlength="4" pattern="[0-9]*" inputmode="numeric" style="margin-top: 0.5rem;">
-                            <small style="color: var(--text-muted); font-size: 0.75rem; display: block; margin-top: 0.5rem;">Este PIN permite al empleado registrar sus horas en el portal de auto-servicio</small>
-                        </div>
-                        <div class="grid-2" style="gap: 1rem">
-                            <div class="form-group">
-                                <label>Cargo</label>
-                                <input type="text" name="position" placeholder="Ej: Chef" required>
-                            </div>
-                            <div class="form-group">
-                                <label>Pago por Hora (₡)</label>
-                                <input type="number" name="hourlyRate" placeholder="3500" required>
-                            </div>
-                        </div>
-                        <div class="grid-2" style="gap: 1rem">
-                            <div class="form-group">
-                                <label>Estado</label>
-                                <select name="status">
-                                    <option value="Active">Activo</option>
-                                    <option value="Inactive">Inactivo</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label>Fecha Inicio</label>
-                                <input type="date" name="startDate" required>
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label>Fecha Terminación (Opcional)</label>
-                            <input type="date" name="endDate">
-                        </div>
-                        <div class="form-group" style="display: flex; align-items: center; gap: 10px; background: rgba(99,102,241,0.05); padding: 10px; border-radius: 8px; border: 1px solid rgba(99,102,241,0.2);">
-                            <input type="checkbox" name="applyCCSS" id="apply-ccss-check" style="width: 20px; height: 20px; cursor: pointer;">
-                            <label for="apply-ccss-check" style="margin: 0; cursor: pointer; font-weight: 600;">Aplicar Rebajo CCSS (10.67%)</label>
-                        </div>
-                        <div style="display: flex; gap: 10px; margin-top: 20px;">
-                            <button type="submit" class="btn btn-primary" style="flex:1">Guardar</button>
-                            <button type="button" class="btn btn-secondary" style="flex:1" onclick="document.getElementById('employee-modal').close()">Cancelar</button>
-                        </div>
-                    </form>
-                </div>
-            </dialog>
+            </div>
         `;
     },
 
@@ -727,7 +769,7 @@ const Views = {
                 for (const emp of employees) {
                     await Storage.update('employees', emp.id, {
                         ...emp,
-                        hourlyRate: emp.hourly_rate, // Map back to API field names if necessary
+                        hourlyRate: emp.hourly_rate,
                         startDate: emp.start_date,
                         applyCCSS: emp.apply_ccss,
                         status: 'Inactive',
@@ -738,101 +780,14 @@ const Views = {
             };
         }
 
-        btn.onclick = () => {
-            form.reset();
-            editIdInput.value = '';
-            modalTitle.textContent = 'Registrar Empleado';
-            modal.showModal();
-        };
-
-        window.editEmployee = async (id) => {
-            const employees = await Storage.get('employees');
-            const emp = employees.find(e => e.id == id);
-            if (!emp) return;
-
-            modalTitle.textContent = 'Editar Empleado';
-            editIdInput.value = emp.id;
-            form.name.value = emp.name;
-            form.cedula.value = emp.cedula || '';
-            form.phone.value = emp.phone || '';
-            form.pin.value = emp.pin || '';
-            form.position.value = emp.position;
-            form.hourlyRate.value = emp.hourly_rate;
-            form.status.value = emp.status;
-            form.startDate.value = emp.start_date ? emp.start_date.split('T')[0] : '';
-            form.endDate.value = emp.end_date ? emp.end_date.split('T')[0] : '';
-            form.applyCCSS.checked = !!emp.apply_ccss;
-
-            modal.showModal();
-        };
-
-        window.deleteEmployee = async (id) => {
-            const employees = await Storage.get('employees');
-            const emp = employees.find(e => e.id == id);
-            if (!emp) return;
-
-            const modalHtml = `
-                <dialog id="delete-confirm-modal" class="modal">
-                    <div class="modal-content" style="max-width: 400px; text-align: center;">
-                        <button class="modal-close-btn" onclick="document.getElementById('delete-confirm-modal').close(); document.getElementById('delete-confirm-modal').remove();">✕</button>
-                        <div style="font-size: 3rem; margin-bottom: 1rem">⚠️</div>
-                        <h3 style="color: var(--danger); margin-bottom: 1rem">¿Eliminar Empleado?</h3>
-                        <p style="color: var(--text-muted); margin-bottom: 2rem">Esta acción eliminará a <strong>${emp.name}</strong> y todos sus registros. No se puede deshacer.</p>
-                        <div style="display: flex; gap: 10px;">
-                            <button id="confirm-delete-btn" class="btn" style="background: var(--danger); flex: 1">Eliminar</button>
-                            <button class="btn" style="flex: 1" onclick="document.getElementById('delete-confirm-modal').close(); document.getElementById('delete-confirm-modal').remove();">Cancelar</button>
-                        </div>
-                    </div>
-                </dialog>
-            `;
-            document.body.insertAdjacentHTML('beforeend', modalHtml);
-            const modal = document.getElementById('delete-confirm-modal');
-            modal.showModal();
-
-            document.getElementById('confirm-delete-btn').onclick = async () => {
-                if (await Storage.delete('employees', id)) {
-                    modal.close();
-                    modal.remove();
-                    App.renderView('employees');
-                }
+        if (btn) {
+            btn.onclick = () => {
+                form.reset();
+                if (editIdInput) editIdInput.value = '';
+                if (modalTitle) modalTitle.textContent = 'Registrar Empleado';
+                modal.showModal();
             };
-        };
-
-        form.onsubmit = async (e) => {
-            e.preventDefault();
-            const formData = new FormData(form);
-            const id = editIdInput.value;
-            const empData = {
-                name: formData.get('name'),
-                cedula: formData.get('cedula'),
-                phone: formData.get('phone'),
-                pin: formData.get('pin'),
-                position: formData.get('position'),
-                hourlyRate: parseFloat(formData.get('hourlyRate')),
-                startDate: formData.get('startDate'),
-                endDate: formData.get('endDate') || null,
-                status: formData.get('status'),
-                applyCCSS: form.applyCCSS.checked,
-                salaryHistory: [] // To be handled by detail edit
-            };
-
-            if (id) {
-                // Keep the old salary history if updating
-                const employees = await Storage.get('employees');
-                const oldEmp = employees.find(e => e.id == id);
-                if (oldEmp) empData.salaryHistory = oldEmp.salary_history || [];
-                await Storage.update('employees', id, empData);
-            } else {
-                await Storage.add('employees', empData);
-            }
-
-            modal.close();
-            if (App.currentView === 'employeeDetail') {
-                App.renderView('employeeDetail', id);
-            } else {
-                App.renderView('employees');
-            }
-        };
+        }
     },
 
     employeeDetail: async (id) => {
