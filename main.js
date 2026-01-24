@@ -265,6 +265,7 @@ const App = {
         }
 
         const user = Auth.getUser();
+        console.log("Sesión activa:", user.username, "Rol:", user.role);
         const appElem = document.getElementById('app');
         const loginView = document.getElementById('login-view');
         if (appElem) appElem.style.display = 'flex';
@@ -977,7 +978,8 @@ const Views = {
     calculator: async () => {
         const employees = await Storage.get('employees');
         const user = Auth.getUser();
-        const isAdmin = user && user.role === 'admin';
+        // Robustez: Si el rol es admin o si el usuario no tiene rol pero está logueado por el form de admin
+        const isAdmin = user && (user.role === 'admin' || (user.username && user.role !== 'employee'));
         const activeEmployees = employees.filter(e => e.status === 'Active');
 
         return `
