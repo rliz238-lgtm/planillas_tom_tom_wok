@@ -49,7 +49,15 @@ const PayrollHelpers = {
     },
     shareWhatsAppPending: (empId) => {
         const d = window._pendingPayrollData[empId]; if (!d) return;
-        const text = `*RESUMEN PAGO - TTW*%0A%0A*Empleado:* ${d.name}%0A*Monto:* ₡${Math.round(d.net).toLocaleString()}%0A*Horas:* ${d.hours.toFixed(1)}h`;
+        let details = "";
+        if (d.logs && d.logs.length > 0) {
+            details = "%0A%0A*DETALLE DE DÍAS:*%0A";
+            d.logs.sort((a, b) => new Date(a.date) - new Date(b.date)).forEach(l => {
+                const day = new Date(l.date + 'T00:00:00').toLocaleString('es-ES', { weekday: 'short' }).toUpperCase();
+                details += `• ${day} ${l.date.split('T')[0]}: ${l.time_in || '--'} - ${l.time_out || '--'} (${parseFloat(l.hours).toFixed(1)}h) → ₡${Math.round(l.net).toLocaleString()}%0A`;
+            });
+        }
+        const text = `*RESUMEN PAGO - TTW*%0A%0A*Empleado:* ${d.name}%0A*Total Neto:* ₡${Math.round(d.net).toLocaleString()}%0A*Total Horas:* ${d.hours.toFixed(1)}h${details}`;
         window.open(`https://wa.me/${d.phone.replace(/\D/g, '')}?text=${text}`, '_blank');
     },
     showPaymentHistoryDetail: async (paymentId) => {
@@ -1406,7 +1414,17 @@ const Views = {
         const pms = await Storage.get('payments'), ems = await Storage.get('employees');
         const p = pms.find(x => x.id == id), e = ems.find(x => x.id == p.employee_id);
         if (!p || !e) return;
-        const text = `*COMPROBANTE TTW*%0A%0A*Emp:* ${e.name}%0A*Pago:* ₡${Math.round(p.amount).toLocaleString()}%0A*Horas:* ${p.hours}h`;
+
+        let details = "";
+        if (p.logs_detail && p.logs_detail.length > 0) {
+            details = "%0A%0A*DETALLE:*%0A";
+            p.logs_detail.forEach(l => {
+                const day = new Date(l.date + 'T00:00:00').toLocaleString('es-ES', { weekday: 'short' }).toUpperCase();
+                details += `• ${day} ${l.date.split('T')[0]}: ${l.time_in || '--'} - ${l.time_out || '--'} (${parseFloat(l.hours).toFixed(1)}h) → ₡${Math.round(l.net || (parseFloat(l.hours) * parseFloat(e.hourly_rate))).toLocaleString()}%0A`;
+            });
+        }
+
+        const text = `*COMPROBANTE TTW*%0A%0A*Empleado:* ${e.name}%0A*Total Pagado:* ₡${Math.round(p.amount).toLocaleString()}%0A*Total Horas:* ${p.hours}h${details}`;
         window.open(`https://wa.me/${e.phone.replace(/\D/g, '')}?text=${text}`, '_blank');
     },
 
