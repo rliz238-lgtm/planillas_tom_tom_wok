@@ -1,7 +1,73 @@
 /**
- * Planillas Tom Tom Wok - Core Logic (API Version)
- * Restauración Completa desde Backup con Soporte PostgreSQL
+ * Planillas Tom Tom Wok - Core Logic
  */
+
+// --- Payroll Global Helpers (Top Level) ---
+window._pendingPayrollData = {};
+const PayrollHelpers = {
+    showPayrollDetail: (empId) => {
+        const data = window._pendingPayrollData[empId];
+        if (!data) return alert("Error: Datos no encontrados. Recargue la página.");
+        const modal = document.getElementById('payroll-detail-modal');
+        const body = document.getElementById('payroll-detail-body');
+        document.getElementById('payroll-detail-title').textContent = `Detalle: ${data.name}`;
+        document.getElementById('payroll-detail-info').innerHTML = `
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+                <div><strong>Pendiente:</strong> ₡${Math.round(data.net).toLocaleString()}</div>
+                <div><strong>Horas:</strong> ${data.hours.toFixed(1)}h</div>
+            </div>`;
+        body.innerHTML = data.logs.sort((a, b) => new Date(b.date) - new Date(a.date)).map(l => `
+            <tr>
+                <td>${l.date.split('T')[0]}</td>
+                <td>${l.time_in || '--'}</td><td>${l.time_out || '--'}</td>
+                <td style="font-weight:700">${parseFloat(l.hours).toFixed(1)}h</td>
+                <td style="display:flex; gap:5px; align-items:center;">
+                    <span style="color:var(--success); font-weight:600;">₡${Math.round(l.net).toLocaleString()}</span>
+                    <button class="btn btn-primary" style="padding:4px 8px; font-size:0.75rem;" onclick="PayrollHelpers.payLine(${l.id},${l.employee_id},'${l.date.split('T')[0]}',${l.net},${l.hours},${l.deduction})">Pagar</button>
+                </td>
+            </tr>`).join('');
+        modal.showModal();
+    },
+    payEmployeeGroup: async (empId) => {
+        const d = window._pendingPayrollData[empId];
+        if (!d || !confirm(`¿Pagar ₡${Math.round(d.net).toLocaleString()} a ${d.name}?`)) return;
+        Storage.showLoader(true, 'Pagando...');
+        try {
+            const res = await Storage.add('payments', { employeeId: parseInt(empId), date: Storage.getLocalDate(), amount: d.net, hours: d.hours, deductionCCSS: d.deduction, netAmount: d.net, startDate: d.startDate, endDate: d.endDate, logsDetail: d.logs, isImported: false });
+            if (res.success) { for (const l of d.logs) await Storage.delete('logs', l.id); App.renderView('payroll'); }
+        } catch (e) { alert("Error"); } finally { Storage.showLoader(false); }
+    },
+    payLine: async (id, empId, date, amt, hrs, ded) => {
+        if (!confirm("¿Pagar este día?")) return;
+        Storage.showLoader(true, 'Pagando día...');
+        try {
+            const logs = await Storage.get('logs');
+            const res = await Storage.add('payments', { employeeId: parseInt(empId), date: Storage.getLocalDate(), amount: amt, hours: hrs, deductionCCSS: ded, netAmount: amt, startDate: date, endDate: date, logsDetail: [logs.find(x => x.id == id)], isImported: false });
+            if (res.success) { await Storage.delete('logs', id); document.getElementById('payroll-detail-modal').close(); App.renderView('payroll'); }
+        } catch (e) { alert("Error"); } finally { Storage.showLoader(false); }
+    },
+    shareWhatsAppPending: (empId) => {
+        const d = window._pendingPayrollData[empId]; if (!d) return;
+        const text = `*RESUMEN PAGO - TTW*%0A%0A*Empleado:* ${d.name}%0A*Monto:* ₡${Math.round(d.net).toLocaleString()}%0A*Horas:* ${d.hours.toFixed(1)}h`;
+        window.open(`https://wa.me/${d.phone.replace(/\D/g, '')}?text=${text}`, '_blank');
+    },
+    showPaymentHistoryDetail: async (paymentId) => {
+        const payments = await Storage.get('payments'), employees = await Storage.get('employees');
+        const p = payments.find(x => x.id == paymentId); if (!p) return;
+        const emp = employees.find(e => e.id == p.employee_id);
+        const modal = document.getElementById('payroll-detail-modal'), body = document.getElementById('payroll-detail-body');
+        document.getElementById('payroll-detail-title').textContent = `Detalle Pago: ${emp ? emp.name : '??'}`;
+        document.getElementById('payroll-detail-info').innerHTML = `
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+                <div><strong>Monto:</strong> ₡${Math.round(p.amount).toLocaleString()}</div>
+                <div><strong>Fecha:</strong> ${p.date.split('T')[0]}</div>
+            </div>`;
+        body.innerHTML = (p.logs_detail || []).map(l => `
+            <tr><td>${l.date.split('T')[0]}</td><td>${l.time_in || '--'}</td><td>${l.time_out || '--'}</td><td colspan="2">${parseFloat(l.hours).toFixed(1)}h</td></tr>`).join('');
+        modal.showModal();
+    }
+};
+window.PayrollHelpers = PayrollHelpers;
 
 // --- Utilities ---
 window.togglePassword = (id) => {
@@ -1192,7 +1258,7 @@ const Views = {
                                         data-end="${ps.endDate.split('T')[0]}"
                                         checked></td>
                                     <td style="font-weight: 600; color: white; cursor: pointer; text-decoration: underline;" 
-                                        onclick="window.showPayrollDetail(${ps.empId})">
+                                        onclick="PayrollHelpers.showPayrollDetail(${ps.empId})">
                                         ${ps.name}
                                     </td>
                                     <td style="font-size: 0.85rem">${ps.startDate.split('T')[0]}</td>
@@ -1201,10 +1267,10 @@ const Views = {
                                     <td style="color: var(--danger)">₡${Math.round(ps.deduction).toLocaleString()}</td>
                                     <td style="color: var(--success); font-weight: 700;">₡${Math.round(ps.net).toLocaleString()}</td>
                                     <td style="display: flex; gap: 5px">
-                                        <button class="btn btn-primary" title="Ver Detalle / Pagar Día por Día" style="padding: 5px 10px" onclick="window.showPayrollDetail(${ps.empId})">👁️</button>
-                                        <button class="btn btn-success" title="Pagar Todo el Periodo" style="padding: 5px 10px; background: var(--success);" onclick="window.payEmployeeGroup(${ps.empId})">💰</button>
-                                        <button class="btn btn-secondary" title="Enviar WhatsApp" style="padding: 5px 10px" onclick="window.shareWhatsAppPending(${ps.empId})">📲</button>
-                                        <button class="btn btn-danger" onclick="window.clearEmpLogs(${ps.empId})" style="padding: 4px 8px; font-size: 0.8rem" title="Limpiar horas de este empleado">🗑️</button>
+                                        <button class="btn btn-primary" title="Ver Detalle" style="padding: 5px 10px" onclick="PayrollHelpers.showPayrollDetail(${ps.empId})">👁️</button>
+                                        <button class="btn btn-success" title="Pagar Todo" style="padding: 5px 10px; background: var(--success);" onclick="PayrollHelpers.payEmployeeGroup(${ps.empId})">💰</button>
+                                        <button class="btn btn-secondary" title="WhatsApp" style="padding: 5px 10px" onclick="PayrollHelpers.shareWhatsAppPending(${ps.empId})">📲</button>
+                                        <button class="btn btn-danger" onclick="window.clearEmpLogs(${ps.empId})" style="padding: 4px 8px; font-size: 0.8rem" title="Limpiar">🗑️</button>
                                     </td>
                                 </tr>
                             `;
@@ -1246,7 +1312,7 @@ const Views = {
                                         <td><input type="checkbox" class="payment-check" data-id="${p.id}" data-full-payment='${paymentJson}'></td>
                                         <td>${p.date ? p.date.split('T')[0] : '—'}</td>
                                         <td style="font-weight: 600; color: white; cursor: pointer; text-decoration: underline;" 
-                                            onclick="window.showPaymentHistoryDetail('${p.id}')">
+                                            onclick="PayrollHelpers.showPaymentHistoryDetail('${p.id}')">
                                             ${emp ? emp.name : 'Desconocido'}
                                         </td>
                                         <td style="font-size: 0.85rem">${p.start_date ? p.start_date.split('T')[0] : '—'}</td>
@@ -1268,347 +1334,53 @@ const Views = {
     },
 
     init_payroll: async () => {
-        const processBtn = document.getElementById('process-payroll-btn');
-        const selectAllPending = document.getElementById('select-all-pending');
-        const selectAllPayments = document.getElementById('select-all-payments');
+        const btn = document.getElementById('process-payroll-btn');
+        if (btn) btn.onclick = async () => {
+            const checks = document.querySelectorAll('.pending-check:checked');
+            if (!checks.length || !confirm(`¿Pagar a ${checks.length} empleados?`)) return;
+            Storage.showLoader(true, 'Procesando...');
+            for (const c of checks) await PayrollHelpers.payEmployeeGroup(c.dataset.empid);
+            Storage.showLoader(false); App.renderView('payroll');
+        };
+        const allP = document.getElementById('select-all-pending');
+        if (allP) allP.onclick = () => document.querySelectorAll('.pending-check').forEach(c => c.checked = allP.checked);
+        const allPy = document.getElementById('select-all-payments');
+        if (allPy) allPy.onclick = () => document.querySelectorAll('.payment-check').forEach(c => c.checked = allPy.checked);
 
-        if (selectAllPending) {
-            selectAllPending.onclick = () => {
-                document.querySelectorAll('.pending-check').forEach(c => c.checked = selectAllPending.checked);
-            };
-        }
+        window.deletePayment = async (id) => { if (confirm("¿Eliminar?")) { await Storage.delete('payments', id); App.renderView('payroll'); } };
+        window.clearAllLogs = async () => { if (confirm("¿Borrar TODO?")) { await fetch('/api/maintenance/clear-all?target=logs', { method: 'DELETE' }); App.renderView('payroll'); } };
 
-        if (selectAllPayments) {
-            selectAllPayments.onclick = () => {
-                document.querySelectorAll('.payment-check').forEach(c => c.checked = selectAllPayments.checked);
-            };
-        }
-
-        if (processBtn) {
-            processBtn.onclick = async () => {
-                const selected = document.querySelectorAll('.pending-check:checked');
-                if (selected.length === 0) return alert('Seleccione al menos un empleado para procesar su pago');
-
-                if (!confirm(`¿Procesar los pagos de ${selected.length} colaboradores seleccionados?`)) return;
-
-                Storage.showLoader(true, 'Procesando pagos agrupados...');
-
-                try {
-                    const today = Storage.getLocalDate();
-                    for (const check of selected) {
-                        const empId = check.dataset.empid;
-                        const hours = parseFloat(check.dataset.hours);
-                        const net = parseFloat(check.dataset.net);
-                        const deduction = parseFloat(check.dataset.deduction);
-                        const startDate = check.dataset.start;
-                        const endDate = check.dataset.end;
-                        const logIds = JSON.parse(check.dataset.logs);
-
-                        // Obtener los logs completos para guardarlos en el historial de ese pago
-                        const allLogs = await Storage.get('logs');
-                        const detailLogs = allLogs.filter(l => logIds.includes(l.id));
-
-                        // 1. Guardar el pago único (agrupado)
-                        const payResult = await Storage.add('payments', {
-                            employeeId: parseInt(empId),
-                            date: today,
-                            amount: net,
-                            hours: hours,
-                            deductionCCSS: deduction,
-                            netAmount: net,
-                            startDate: startDate,
-                            endDate: endDate,
-                            logsDetail: detailLogs,
-                            isImported: false
-                        });
-
-                        // 2. Marcar estos logs como pagados (o borrarlos)
-                        if (payResult && payResult.success) {
-                            for (const id of logIds) {
-                                await Storage.delete('logs', id);
-                            }
-                        } else {
-                            throw new Error(`No se pudo procesar el pago para el empleado ID: ${empId}`);
-                        }
-                    }
-
-                    Storage.showLoader(false);
-                    alert('¡Pagos procesados exitosamente!');
-                    App.switchView('payroll');
-                } catch (err) {
-                    Storage.showLoader(false);
-                    console.error("Error al procesar planilla:", err);
-                    alert("Hubo un error al procesar algunos pagos.");
-                }
-            };
-        }
-
-        window.deleteLog = async (id) => {
-            if (!confirm('¿Desea eliminar este registro de horas?')) return;
-            await Storage.delete('logs', id);
+        const delSel = document.getElementById('delete-selected-payments');
+        if (delSel) delSel.onclick = async () => {
+            const checks = document.querySelectorAll('.payment-check:checked');
+            if (!checks.length || !confirm("¿Borrar seleccionados?")) return;
+            for (const c of checks) await Storage.delete('payments', c.dataset.id);
             App.renderView('payroll');
         };
 
-        window.clearEmpLogs = async (id) => {
-            if (!confirm('¿Borrar todas las horas pendientes de este empleado?')) return;
-            await Storage.deleteLogsByEmployee(id);
-            App.renderView('payroll');
-        };
+        // Redefine mappings for global scope access
+        window.showPayrollDetail = PayrollHelpers.showPayrollDetail;
+        window.showPaymentHistoryDetail = PayrollHelpers.showPaymentHistoryDetail;
+        window.payEmployeeGroup = PayrollHelpers.payEmployeeGroup;
+        window.shareWhatsAppPending = PayrollHelpers.shareWhatsAppPending;
+    },
 
-        window.clearAllLogs = async () => {
-            if (!confirm('Esta acción borrará TODAS las horas registradas de TODOS los empleados. ¿Proceder?')) return;
-            const employees = await Storage.get('employees');
-            for (const emp of employees) {
-                await Storage.deleteLogsByEmployee(emp.id);
-            }
-            App.renderView('payroll');
-        };
+    shareWhatsApp: async (id) => {
+        const pms = await Storage.get('payments'), ems = await Storage.get('employees');
+        const p = pms.find(x => x.id == id), e = ems.find(x => x.id == p.employee_id);
+        if (!p || !e) return;
+        const text = `*COMPROBANTE TTW*%0A%0A*Emp:* ${e.name}%0A*Pago:* ₡${Math.round(p.amount).toLocaleString()}%0A*Horas:* ${p.hours}h`;
+        window.open(`https://wa.me/${e.phone.replace(/\D/g, '')}?text=${text}`, '_blank');
+    },
 
-        window.deletePayment = async (id) => {
-            if (!confirm('¿Eliminar este registro de pago?')) return;
-            await Storage.delete('payments', id);
-            App.renderView('payroll');
-        };
-
-        const deleteSelectedBtn = document.getElementById('delete-selected-payments');
-        if (deleteSelectedBtn) {
-            deleteSelectedBtn.onclick = async () => {
-                const selected = document.querySelectorAll('.payment-check:checked');
-                if (selected.length === 0) return;
-                if (!confirm(`¿Eliminar ${selected.length} pagos seleccionados?`)) return;
-
-                for (const check of selected) {
-                    await Storage.delete('payments', check.dataset.id);
-                }
-                App.renderView('payroll');
-            };
-        }
-
-        // Pagar grupo completo de un empleado desde la tabla principal
-        window.payEmployeeGroup = async (empId) => {
-            const data = window._pendingPayrollData ? window._pendingPayrollData[empId] : null;
-            if (!data) return alert("No se encontraron los datos del empleado. Por favor recargue.");
-
-            if (!confirm(`¿Procesar el pago total de ₡${Math.round(data.net).toLocaleString()} para ${data.name}?`)) return;
-
-            Storage.showLoader(true, 'Procesando pago total...');
-            try {
-                const today = Storage.getLocalDate();
-                const logIds = data.logs.map(l => l.id);
-
-                const payResult = await Storage.add('payments', {
-                    employeeId: parseInt(empId),
-                    date: today,
-                    amount: data.net,
-                    hours: data.hours,
-                    deductionCCSS: data.deduction,
-                    netAmount: data.net,
-                    startDate: data.startDate.split('T')[0],
-                    endDate: data.endDate.split('T')[0],
-                    logsDetail: data.logs,
-                    isImported: false
-                });
-
-                if (payResult && payResult.success) {
-                    for (const id of logIds) {
-                        await Storage.delete('logs', id);
-                    }
-                    App.renderView('payroll');
-                } else {
-                    alert("Error guardando el pago: " + (payResult.error || "Desconocido"));
-                }
-            } catch (err) {
-                console.error(err);
-                alert("Error crítico al procesar el pago");
-            } finally {
-                Storage.showLoader(false);
-            }
-        };
-
-        // Pagar por línea (día individual)
-        window.payLine = async (logId, empId, date, amount, hours, deduction) => {
-            if (!confirm(`¿Procesar el pago de este día individual?`)) return;
-
-            Storage.showLoader(true, 'Procesando pago individual...');
-            try {
-                const logs = await Storage.get('logs');
-                const log = logs.find(l => l.id == logId);
-
-                const payResult = await Storage.add('payments', {
-                    employeeId: parseInt(empId),
-                    date: Storage.getLocalDate(),
-                    amount: amount,
-                    hours: hours,
-                    deductionCCSS: deduction,
-                    netAmount: amount,
-                    startDate: date,
-                    endDate: date,
-                    logsDetail: [log],
-                    isImported: false
-                });
-
-                if (payResult && payResult.success) {
-                    await Storage.delete('logs', logId);
-                    const modal = document.getElementById('payroll-detail-modal');
-                    if (modal) modal.close();
-                    App.renderView('payroll');
-                }
-            } catch (err) {
-                console.error(err);
-                alert("Error al procesar el pago");
-            } finally {
-                Storage.showLoader(false);
-            }
-        };
-
-        // --- Modales de Detalle ---
-        window.showPayrollDetail = (empId) => {
-            try {
-                const data = window._pendingPayrollData ? window._pendingPayrollData[empId] : null;
-                if (!data) return console.warn("No data for empId:", empId);
-
-                const modal = document.getElementById('payroll-detail-modal');
-                if (!modal) return console.error("Modal 'payroll-detail-modal' not found");
-
-                const title = document.getElementById('payroll-detail-title');
-                const info = document.getElementById('payroll-detail-info');
-                const body = document.getElementById('payroll-detail-body');
-
-                title.textContent = `Detalle de Horas Pendientes: ${data.name}`;
-                info.innerHTML = `
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                        <div><strong>Total Pendiente:</strong> ₡${Math.round(data.net).toLocaleString()}</div>
-                        <div><strong>Horas Totales:</strong> ${data.hours.toFixed(1)}h</div>
-                    </div>
-                `;
-
-                body.innerHTML = data.logs.sort((a, b) => new Date(b.date) - new Date(a.date)).map(l => `
-                    <tr>
-                        <td>${l.date.split('T')[0]}</td>
-                        <td>${l.time_in || '—'}</td>
-                        <td>${l.time_out || '—'}</td>
-                        <td style="font-weight:600">${parseFloat(l.hours).toFixed(1)}h</td>
-                        <td style="display: flex; gap: 5px; align-items: center">
-                            <span style="color: var(--success); font-weight: 600; margin-right: 10px;">₡${Math.round(l.net).toLocaleString()}</span>
-                            <button class="btn btn-primary" style="padding: 4px 8px; font-size: 0.75rem" onclick="window.payLine(${l.id}, ${l.employee_id}, '${l.date.split('T')[0]}', ${l.net}, ${l.hours}, ${l.deduction})">Pagar Día</button>
-                        </td>
-                    </tr>
-                `).join('');
-
-                modal.showModal();
-            } catch (err) {
-                console.error("Error opening payroll detail:", err);
-                alert("Error al abrir el detalle del empleado.");
-            }
-        };
-
-        window.showPaymentHistoryDetail = async (paymentId) => {
-            const payments = await Storage.get('payments');
-            const employees = await Storage.get('employees');
-            const p = payments.find(x => x.id == paymentId);
-            if (!p) return;
-            const emp = employees.find(e => e.id == p.employee_id);
-
-            const modal = document.getElementById('payroll-detail-modal');
-            const title = document.getElementById('payroll-detail-title');
-            const info = document.getElementById('payroll-detail-info');
-            const body = document.getElementById('payroll-detail-body');
-
-            title.textContent = `Detalle de Pago Realizado: ${emp ? emp.name : 'Desconocido'}`;
-            info.innerHTML = `
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                    <div><strong>Monto Pagado:</strong> ₡${Math.round(p.amount).toLocaleString()}</div>
-                    <div><strong>Periodo:</strong> ${p.start_date ? p.start_date.split('T')[0] : '—'} al ${p.end_date ? p.end_date.split('T')[0] : '—'}</div>
-                    <div><strong>Horas:</strong> ${parseFloat(p.hours).toFixed(1)}h</div>
-                    <div><strong>Fecha Pago:</strong> ${p.date ? p.date.split('T')[0] : '—'}</div>
-                </div>
-            `;
-
-            const logs = p.logs_detail || [];
-            body.innerHTML = logs.map(l => `
-                <tr>
-                    <td>${l.date.split('T')[0]}</td>
-                    <td>${l.time_in || '—'}</td>
-                    <td>${l.time_out || '—'}</td>
-                    <td style="font-weight:600">${parseFloat(l.hours).toFixed(1)}h</td>
-                    <td style="color: var(--success)">—</td>
-                </tr>
-            `).join('');
-            if (logs.length === 0) body.innerHTML = '<tr><td colspan="5" style="text-align:center">No hay detalle de días guardado para este pago antiguo.</td></tr>';
-
-            modal.showModal();
-        };
-
-        window.shareWhatsAppPending = (empId) => {
-            const data = window._pendingPayrollData ? window._pendingPayrollData[empId] : null;
-            if (!data) return;
-
-            let logText = "";
-            data.logs.sort((a, b) => new Date(a.date) - new Date(b.date)).forEach(l => {
-                logText += `• ${l.date.split('T')[0]}: ${parseFloat(l.hours).toFixed(1)}h = ₡${Math.round(l.net).toLocaleString()}%0A`;
-            });
-
-            const text = `*RESUMEN DE PAGO PENDIENTE - TOM TOM WOK*%0A%0A` +
-                `*Empleado:* ${data.name}%0A` +
-                `*Total Horas:* ${data.hours.toFixed(1)}h%0A` +
-                `*Monto Total:* ₡${Math.round(data.net).toLocaleString()}%0A%0A` +
-                `*Detalle por día:*%0A${logText}%0A` +
-                `¡Listo para pago! 🍜`;
-
-            const cleanPhone = data.phone ? data.phone.replace(/\D/g, '') : '';
-            window.open(`https://wa.me/${cleanPhone}?text=${text}`, '_blank');
-        };
-
-        window.shareWhatsApp = async (id) => {
-            const payments = await Storage.get('payments');
-            const employees = await Storage.get('employees');
-            const p = payments.find(p => p.id == id);
-            const emp = employees.find(e => e.id == p.employee_id);
-
-            if (!p || !emp) return;
-
-            let logText = "";
-            if (p.logs_detail && p.logs_detail.length > 0) {
-                p.logs_detail.sort((a, b) => new Date(a.date) - new Date(b.date)).forEach(l => {
-                    logText += `• ${l.date.split('T')[0]}: ${parseFloat(l.hours).toFixed(1)}h%0A`;
-                });
-            }
-
-            const text = `*COMPROBANTE DE PAGO - TOM TOM WOK*%0A%0A` +
-                `*Empleado:* ${emp.name}%0A` +
-                `*Periodo:* ${p.start_date ? p.start_date.split('T')[0] : '—'} al ${p.end_date ? p.end_date.split('T')[0] : '—'}%0A` +
-                `*Fecha Pago:* ${p.date.split('T')[0]}%0A%0A` +
-                `*Detalle de días:*%0A${logText}%0A` +
-                `*Total Horas:* ${parseFloat(p.hours).toFixed(1)}h%0A` +
-                `*Monto Net Pagado:* ₡${Math.round(p.amount).toLocaleString()}%0A%0A` +
-                `¡Gracias por tu esfuerzo! 🍜`;
-
-            const phone = emp.phone ? emp.phone.replace(/\D/g, '') : '';
-            window.open(`https://wa.me/${phone}?text=${text}`, '_blank');
-        };
-
-        window.exportPayments = async () => {
-            const payments = await Storage.get('payments');
-            const employees = await Storage.get('employees');
-            const data = payments.map(p => {
-                const emp = employees.find(e => e.id == p.employee_id);
-                return {
-                    Fecha_Pago: p.date.split('T')[0],
-                    Empleado: emp ? emp.name : '—',
-                    Desde: p.start_date ? p.start_date.split('T')[0] : '—',
-                    Hasta: p.end_date ? p.end_date.split('T')[0] : '—',
-                    Horas: p.hours,
-                    Monto_Neto: p.amount,
-                    CCSS: p.deduction_ccss,
-                    Importado: p.is_imported ? 'Sí' : 'No'
-                };
-            });
-
-            const ws = XLSX.utils.json_to_sheet(data);
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "Pagos");
-            XLSX.writeFile(wb, `Pagos_TTW_${Storage.getLocalDate()}.xlsx`);
-        };
+    exportPayments: async () => {
+        const pms = await Storage.get('payments'), ems = await Storage.get('employees');
+        const data = pms.map(p => {
+            const e = ems.find(x => x.id == p.employee_id);
+            return { Fecha: p.date.split('T')[0], Empleado: e ? e.name : '--', Horas: p.hours, Monto: p.amount };
+        });
+        const ws = XLSX.utils.json_to_sheet(data); const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Pagos"); XLSX.writeFile(wb, "Pagos.xlsx");
     },
 
     benefits: async () => {
