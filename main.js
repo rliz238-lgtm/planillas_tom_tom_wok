@@ -970,8 +970,10 @@ const Views = {
 
     init_employeeDetail: async (id) => {
         const modal = document.getElementById('edit-detail-modal');
-        const btn = document.getElementById('edit-detail-btn');
         const form = document.getElementById('edit-detail-form');
+
+        // El botón btn-primary que agregamos en el render anterior
+        const btn = document.querySelector('[onclick*="window.editEmployee"]');
 
         if (btn) btn.onclick = () => modal.showModal();
 
