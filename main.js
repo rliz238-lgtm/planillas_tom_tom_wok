@@ -24,10 +24,21 @@ const PayrollHelpers = {
                 <td style="display:flex; gap:5px; align-items:center;">
                     <span style="color:var(--success); font-weight:600;">₡${Math.round(l.net).toLocaleString()}</span>
                     <button class="btn btn-primary" style="padding:4px 8px; font-size:0.75rem;" onclick="PayrollHelpers.payLine(${l.id},${l.employee_id},'${l.date.split('T')[0]}',${l.net},${l.hours},${l.deduction})">Pagar</button>
+                    <button class="btn btn-whatsapp" style="padding:4px 8px; font-size:0.75rem;" onclick="PayrollHelpers.shareWhatsAppLine(${l.employee_id}, '${l.date.split('T')[0]}', ${l.hours}, ${l.net}, '${l.time_in}', '${l.time_out}')" title="Enviar este día por WhatsApp">✉️</button>
                     <button class="btn btn-danger" style="padding:4px 8px; font-size:0.75rem;" onclick="window.deleteLog(${l.id})">🗑️</button>
                 </td>
             </tr>`).join('');
         modal.showModal();
+    },
+    shareWhatsAppLine: (empId, date, hours, amount, tIn, tOut) => {
+        const employees = JSON.parse(localStorage.getItem('ttw_temp_employees') || '[]'); // Fallback or assume available
+        // Better: Fetch it from the pending data if available
+        const d = window._pendingPayrollData[empId];
+        const phone = d ? d.phone : '';
+        const name = d ? d.name : 'Empleado';
+        const day = new Date(date + 'T00:00:00').toLocaleString('es-ES', { weekday: 'short' }).toUpperCase();
+        const text = `*REGISTRO TTW*%0A%0A*Emp:* ${name}%0A*Día:* ${day} ${date}%0A*Horario:* ${tIn || '--'} - ${tOut || '--'}%0A*Horas:* ${parseFloat(hours).toFixed(1)}h%0A*Monto:* ₡${Math.round(amount).toLocaleString()}`;
+        window.open(`https://wa.me/${phone.replace(/\D/g, '')}?text=${text}`, '_blank');
     },
     payEmployeeGroup: async (empId) => {
         const d = window._pendingPayrollData[empId];
@@ -71,8 +82,21 @@ const PayrollHelpers = {
                 <div><strong>Monto:</strong> ₡${Math.round(p.amount).toLocaleString()}</div>
                 <div><strong>Fecha:</strong> ${p.date.split('T')[0]}</div>
             </div>`;
-        body.innerHTML = (p.logs_detail || []).map(l => `
-            <tr><td>${l.date.split('T')[0]}</td><td>${l.time_in || '--'}</td><td>${l.time_out || '--'}</td><td colspan="2">${parseFloat(l.hours).toFixed(1)}h</td></tr>`).join('');
+        body.innerHTML = (p.logs_detail || []).map(l => {
+            const day = new Date(l.date + 'T00:00:00').toLocaleString('es-ES', { weekday: 'short' }).toUpperCase();
+            const logNet = l.net || (parseFloat(l.hours) * (emp ? parseFloat(emp.hourly_rate) : 0));
+            return `
+            <tr>
+                <td>${l.date.split('T')[0]}</td>
+                <td>${l.time_in || '--'}</td>
+                <td>${l.time_out || '--'}</td>
+                <td>${parseFloat(l.hours).toFixed(1)}h</td>
+                <td style="display:flex; gap:5px; align-items:center;">
+                    <span style="font-weight:600">₡${Math.round(logNet).toLocaleString()}</span>
+                    <button class="btn btn-whatsapp" style="padding:4px 8px; font-size:0.75rem;" onclick="PayrollHelpers.shareWhatsAppLine(${emp ? emp.id : 0}, '${l.date.split('T')[0]}', ${l.hours}, ${logNet}, '${l.time_in}', '${l.time_out}')">✉️</button>
+                </td>
+            </tr>`;
+        }).join('');
         modal.showModal();
     }
 };
@@ -1282,7 +1306,7 @@ const Views = {
                                     <td style="display: flex; gap: 5px">
                                         <button class="btn btn-primary" title="Ver Detalle" style="padding: 5px 10px" onclick="PayrollHelpers.showPayrollDetail(${ps.empId})">👁️</button>
                                         <button class="btn btn-success" title="Pagar Todo" style="padding: 5px 10px; background: var(--success);" onclick="PayrollHelpers.payEmployeeGroup(${ps.empId})">💰</button>
-                                        <button class="btn btn-secondary" title="WhatsApp" style="padding: 5px 10px" onclick="PayrollHelpers.shareWhatsAppPending(${ps.empId})">📲</button>
+                                        <button class="btn btn-whatsapp" title="WhatsApp" style="padding: 5px 10px" onclick="PayrollHelpers.shareWhatsAppPending(${ps.empId})">✉️</button>
                                         <button class="btn btn-danger" onclick="window.clearEmpLogs(${ps.empId})" style="padding: 4px 8px; font-size: 0.8rem" title="Limpiar">🗑️</button>
                                     </td>
                                 </tr>
@@ -1333,7 +1357,8 @@ const Views = {
                                         <td>${parseFloat(p.hours || 0).toFixed(1)}h</td>
                                         <td style="color: var(--success); font-weight: 700;">₡${Math.round(p.amount).toLocaleString()}</td>
                                         <td style="display: flex; gap: 5px">
-                                            <button class="btn btn-secondary" style="padding: 5px 10px" onclick="window.shareWhatsApp('${p.id}')">📲</button>
+                                            <button class="btn btn-primary" title="Ver Detalle" style="padding: 5px 10px" onclick="PayrollHelpers.showPaymentHistoryDetail('${p.id}')">👁️</button>
+                                            <button class="btn btn-whatsapp" title="WhatsApp" style="padding: 5px 10px" onclick="window.shareWhatsApp('${p.id}')">✉️</button>
                                             <button class="btn btn-danger" style="padding: 5px 10px" onclick="window.deletePayment('${p.id}')">🗑️</button>
                                         </td>
                                     </tr>
