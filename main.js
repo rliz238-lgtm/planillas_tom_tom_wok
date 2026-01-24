@@ -989,21 +989,28 @@ const Views = {
                     </p>
                 </div>
 
-                <div class="form-group" style="max-width: 400px; margin-bottom: 2rem; ${isAdmin ? '' : 'display: none'}">
-                    <label>Seleccionar Empleado</label>
-                    <select id="calc-employee-id" required>
-                        ${isAdmin ? '<option value="">Seleccione un empleado...</option>' : ''}
+                <div class="form-group" style="max-width: 400px; margin-bottom: 2.5rem;">
+                    <label style="font-weight: 600; color: var(--text-main); margin-bottom: 0.8rem; display: block;">
+                        ${isAdmin ? '👤 Seleccionar Colaborador' : '👤 Mi Perfil de Empleado'}
+                    </label>
+                    <select id="calc-employee-id" required ${isAdmin ? '' : 'disabled style="background: rgba(255,255,255,0.05); color: var(--text-muted); border-color: transparent;"'}>
+                        ${isAdmin ? '<option value="">-- Seleccione a quién registrar horas --</option>' : ''}
                         ${activeEmployees.map(e => `
-                            <option value="${e.id}" ${(!isAdmin && e.id == user.id) ? 'selected' : ''}>
-                                ${e.name} (₡${parseFloat(e.hourly_rate).toLocaleString()}/h)
+                            <option value="${e.id}" ${((isAdmin && activeEmployees.length === 1) || (!isAdmin && e.id == user.id)) ? 'selected' : ''}>
+                                ${e.name} ${isAdmin ? `(₡${parseFloat(e.hourly_rate).toLocaleString()}/h)` : ''}
                             </option>
                         `).join('')}
                     </select>
+                    ${isAdmin ? `
+                        <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem">
+                            Seleccione el empleado para cargar su tarifa por hora automáticamente.
+                        </p>
+                    ` : `
+                        <div style="margin-top: 1rem; padding: 0.8rem; background: rgba(99,102,241,0.1); border-radius: 10px; border-left: 4px solid var(--primary);">
+                            <span style="font-size: 0.85rem; color: var(--text-main)">Sesión activa como: <strong>${user.name}</strong></span>
+                        </div>
+                    `}
                 </div>
-                ${!isAdmin ? `<div style="margin-bottom: 2rem; padding: 1rem; background: rgba(99,102,241,0.1); border-radius: 12px; border-left: 4px solid var(--primary);">
-                    <div style="font-weight: 600; font-size: 1.1rem; color: white">${user.name}</div>
-                    <div style="color: var(--text-muted); font-size: 0.85rem">Registrando horas para el historial</div>
-                </div>` : ''}
 
                 <div class="table-container">
                     <table id="calc-table">
