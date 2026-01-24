@@ -624,10 +624,12 @@ const Views = {
                                         <div style="font-size: 0.85rem">📅 ${emp.start_date ? emp.start_date.split('T')[0] : '—'}</div>
                                         ${emp.end_date ? `<div style="font-size: 0.85rem; color: var(--danger)">🚪 ${emp.end_date.split('T')[0]}</div>` : ''}
                                     </td>
-                                    <td style="display: flex; gap: 8px;">
-                                        <button class="btn" style="padding: 4px 8px; background: rgba(99,102,241,0.1)" onclick="window.editEmployee('${emp.id}')">✏️</button>
-                                        <button class="btn" style="padding: 4px 8px; background: rgba(99,102,241,0.1)" onclick="App.switchView('employeeDetail', '${emp.id}')">👁️</button>
-                                        <button class="btn" style="padding: 4px 8px; background: rgba(239,68,68,0.1)" onclick="window.deleteEmployee('${emp.id}')">🗑️</button>
+                                    <td style="padding: 1.25rem 1rem;">
+                                        <div style="display: flex; gap: 8px; align-items: center;">
+                                            <button class="btn" style="padding: 4px 8px; background: rgba(99,102,241,0.1); border: 1px solid rgba(99,102,241,0.2)" onclick="window.editEmployee('${emp.id}')" title="Editar">✏️</button>
+                                            <button class="btn" style="padding: 4px 8px; background: rgba(99,102,241,0.1); border: 1px solid rgba(99,102,241,0.2)" onclick="App.switchView('employeeDetail', '${emp.id}')" title="Ver Detalle">👁️</button>
+                                            <button class="btn" style="padding: 4px 8px; background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.2)" onclick="window.deleteEmployee('${emp.id}')" title="Eliminar">🗑️</button>
+                                        </div>
                                     </td>
                                 </tr>
                             `).join('')}
@@ -851,7 +853,7 @@ const Views = {
                     </div>
                     <div style="display: flex; gap: 10px">
                         <button class="btn" style="background: rgba(99,102,241,0.1)" onclick="App.switchView('employees')">⬅️ Volver</button>
-                        <button class="btn btn-primary" id="edit-detail-btn">✏️ Editar Perfil</button>
+                        <button class="btn btn-primary" onclick="window.editEmployee('${emp.id}')">✏️ Editar Perfil Completo</button>
                     </div>
                 </div>
 
@@ -907,6 +909,34 @@ const Views = {
                                 <span>₡${emp.apply_ccss ? (48 * emp.hourly_rate * 0.1067).toLocaleString() : '0'}</span>
                             </div>
                         </div>
+                    </div>
+                </div>
+
+                <div class="card-container" style="margin-top: 2rem;">
+                    <h3 style="margin-bottom: 1.5rem">Historial de Pagos Realizados</h3>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Fecha de Pago</th>
+                                    <th>Periodo</th>
+                                    <th>Monto Pagado</th>
+                                    <th>Método</th>
+                                    <th>Estado</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${empPayments.length > 0 ? empPayments.sort((a, b) => new Date(b.date) - new Date(a.date)).map(p => `
+                                    <tr>
+                                        <td style="color: white">${p.date ? p.date.split('T')[0] : '—'}</td>
+                                        <td>${p.period || 'N/A'}</td>
+                                        <td style="font-weight: 600; color: var(--success)">₡${parseFloat(p.amount).toLocaleString()}</td>
+                                        <td>${p.method || 'Transferencia'}</td>
+                                        <td><span class="tag tag-active">Pagado</span></td>
+                                    </tr>
+                                `).join('') : '<tr><td colspan="5" style="text-align:center; padding: 2rem; color: var(--text-muted)">No hay pagos registrados para este empleado.</td></tr>'}
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>
