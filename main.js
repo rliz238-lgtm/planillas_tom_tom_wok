@@ -1179,7 +1179,10 @@ const Views = {
                             </tr>
                         </thead>
                         <tbody>
-                            ${pendingSummary.map(ps => `
+                            ${pendingSummary.map(ps => {
+            // Escapar comillas para el atributo data
+            const logsJson = JSON.stringify(ps.logs).replace(/'/g, "&apos;");
+            return `
                                 <tr>
                                     <td><input type="checkbox" class="pending-check" 
                                         data-empid="${ps.empId}" 
@@ -1188,10 +1191,12 @@ const Views = {
                                         data-deduction="${ps.deduction}" 
                                         data-start="${ps.startDate.split('T')[0]}"
                                         data-end="${ps.endDate.split('T')[0]}"
-                                        data-logs='${JSON.stringify(ps.logs.map(l => l.id))}' 
+                                        data-logs='${JSON.stringify(ps.logs.map(l => l.id))}'
+                                        data-full-logs='${logsJson}'
+                                        data-phone="${ps.phone}"
                                         checked></td>
                                     <td style="font-weight: 600; color: white; cursor: pointer; text-decoration: underline;" 
-                                        onclick='window.showPayrollDetail(${JSON.stringify({ name: ps.name, logs: ps.logs, total: ps.net, hours: ps.hours })})'>
+                                        onclick="window.showPayrollDetail('${ps.empId}')">
                                         ${ps.name}
                                     </td>
                                     <td style="font-size: 0.85rem">${ps.startDate.split('T')[0]}</td>
@@ -1200,11 +1205,12 @@ const Views = {
                                     <td style="color: var(--danger)">₡${Math.round(ps.deduction).toLocaleString()}</td>
                                     <td style="color: var(--success); font-weight: 700;">₡${Math.round(ps.net).toLocaleString()}</td>
                                     <td style="display: flex; gap: 5px">
-                                        <button class="btn btn-secondary" style="padding: 5px 10px" onclick='window.shareWhatsAppPending(${JSON.stringify({ name: ps.name, phone: ps.phone, logs: ps.logs, total: ps.net, hours: ps.hours })})'>📲</button>
+                                        <button class="btn btn-secondary" style="padding: 5px 10px" onclick="window.shareWhatsAppPending('${ps.empId}')">📲</button>
                                         <button class="btn btn-danger" onclick="window.clearEmpLogs(${ps.empId})" style="padding: 4px 8px; font-size: 0.8rem" title="Limpiar horas de este empleado">🗑️</button>
                                     </td>
                                 </tr>
-                            `).join('')}
+                            `;
+        }).join('')}
                             ${pendingSummary.length === 0 ? '<tr><td colspan="8" style="text-align:center">No hay horas pendientes de pago</td></tr>' : ''}
                         </tbody>
                     </table>
@@ -1236,12 +1242,13 @@ const Views = {
                         <tbody>
                             ${payments.sort((a, b) => new Date(b.date) - new Date(a.date)).map(p => {
             const emp = employees.find(e => e.id == p.employee_id);
+            const paymentJson = JSON.stringify(p).replace(/'/g, "&apos;");
             return `
                                     <tr>
-                                        <td><input type="checkbox" class="payment-check" data-id="${p.id}"></td>
+                                        <td><input type="checkbox" class="payment-check" data-id="${p.id}" data-full-payment='${paymentJson}'></td>
                                         <td>${p.date ? p.date.split('T')[0] : '—'}</td>
                                         <td style="font-weight: 600; color: white; cursor: pointer; text-decoration: underline;" 
-                                            onclick='window.showPaymentHistoryDetail(${JSON.stringify(p)}, "${emp ? emp.name : 'Desconocido'}")'>
+                                            onclick="window.showPaymentHistoryDetail('${p.id}')">
                                             ${emp ? emp.name : 'Desconocido'}
                                         </td>
                                         <td style="font-size: 0.85rem">${p.start_date ? p.start_date.split('T')[0] : '—'}</td>
@@ -1379,35 +1386,92 @@ const Views = {
             };
         }
 
+        // Pagar por línea (día individual)
+        window.payLine = async (logId, empId, date, amount, hours, deduction) => {
+            if (!confirm(`¿Procesar el pago de este día individual?`)) return;
+
+            Storage.showLoader(true, 'Procesando pago individual...');
+            try {
+                const logs = await Storage.get('logs');
+                const log = logs.find(l => l.id == logId);
+
+                const payResult = await Storage.add('payments', {
+                    employeeId: parseInt(empId),
+                    date: Storage.getLocalDate(),
+                    amount: amount,
+                    hours: hours,
+                    deductionCCSS: deduction,
+                    netAmount: amount,
+                    startDate: date,
+                    endDate: date,
+                    logsDetail: [log],
+                    isImported: false
+                });
+
+                if (payResult && payResult.success) {
+                    await Storage.delete('logs', logId);
+                    document.getElementById('payroll-detail-modal').close();
+                    App.renderView('payroll');
+                }
+            } catch (err) {
+                console.error(err);
+                alert("Error al procesar el pago");
+            } finally {
+                Storage.showLoader(false);
+            }
+        };
+
         // --- Modales de Detalle ---
-        window.showPayrollDetail = (data) => {
+        window.showPayrollDetail = (empId) => {
+            const container = document.getElementById('view-container');
+            // Buscamos los datos en el checkbox que ya tiene todo guardado
+            const check = container.querySelector(`.pending-check[data-empid="${empId}"]`);
+            if (!check) return;
+
+            const name = check.closest('tr').querySelector('td:nth-child(2)').textContent.trim();
+            const logs = JSON.parse(check.getAttribute('data-full-logs'));
+            const total = parseFloat(check.dataset.net);
+            const hours = parseFloat(check.dataset.hours);
+
             const modal = document.getElementById('payroll-detail-modal');
             const title = document.getElementById('payroll-detail-title');
             const info = document.getElementById('payroll-detail-info');
             const body = document.getElementById('payroll-detail-body');
 
-            title.textContent = `Detalle de Horas Pendientes: ${data.name}`;
+            title.textContent = `Detalle de Horas Pendientes: ${name}`;
             info.innerHTML = `
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                    <div><strong>Total Pendiente:</strong> ₡${Math.round(data.total).toLocaleString()}</div>
-                    <div><strong>Horas Totales:</strong> ${data.hours.toFixed(1)}h</div>
+                    <div><strong>Total Pendiente:</strong> ₡${Math.round(total).toLocaleString()}</div>
+                    <div><strong>Horas Totales:</strong> ${hours.toFixed(1)}h</div>
                 </div>
             `;
 
-            body.innerHTML = data.logs.sort((a, b) => new Date(b.date) - new Date(a.date)).map(l => `
+            body.innerHTML = logs.sort((a, b) => new Date(b.date) - new Date(a.date)).map(l => `
                 <tr>
                     <td>${l.date.split('T')[0]}</td>
                     <td>${l.time_in || '—'}</td>
                     <td>${l.time_out || '—'}</td>
                     <td style="font-weight:600">${parseFloat(l.hours).toFixed(1)}h</td>
-                    <td style="color: var(--success)">₡${Math.round(l.net).toLocaleString()}</td>
+                    <td style="display: flex; gap: 5px; align-items: center">
+                        <span style="color: var(--success)">₡${Math.round(l.net).toLocaleString()}</span>
+                        <button class="btn btn-primary" style="padding: 2px 6px; font-size: 0.7rem" onclick="window.payLine(${l.id}, ${l.employee_id}, '${l.date.split('T')[0]}', ${l.net}, ${l.hours}, ${l.deduction})">Pagar Día</button>
+                    </td>
                 </tr>
             `).join('');
 
             modal.showModal();
         };
 
-        window.showPaymentHistoryDetail = (payment, empName) => {
+        window.showPaymentHistoryDetail = (paymentId) => {
+            const container = document.getElementById('view-container');
+            const check = container.querySelector(`.payment-check[data-id="${paymentId}"]`);
+            if (!check) return;
+
+            const tr = check.closest('tr');
+            const empName = tr.querySelector('td:nth-child(3)').textContent.trim();
+            const paymentStr = check.getAttribute('data-full-payment');
+            const payment = JSON.parse(paymentStr);
+
             const modal = document.getElementById('payroll-detail-modal');
             const title = document.getElementById('payroll-detail-title');
             const info = document.getElementById('payroll-detail-info');
@@ -1417,9 +1481,9 @@ const Views = {
             info.innerHTML = `
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                     <div><strong>Monto Pagado:</strong> ₡${Math.round(payment.amount).toLocaleString()}</div>
-                    <div><strong>Periodo:</strong> ${payment.start_date.split('T')[0]} al ${payment.end_date.split('T')[0]}</div>
+                    <div><strong>Periodo:</strong> ${payment.start_date ? payment.start_date.split('T')[0] : '—'} al ${payment.end_date ? payment.end_date.split('T')[0] : '—'}</div>
                     <div><strong>Horas:</strong> ${parseFloat(payment.hours).toFixed(1)}h</div>
-                    <div><strong>Fecha Pago:</strong> ${payment.date.split('T')[0]}</div>
+                    <div><strong>Fecha Pago:</strong> ${payment.date ? payment.date.split('T')[0] : '—'}</div>
                 </div>
             `;
 
@@ -1438,21 +1502,31 @@ const Views = {
             modal.showModal();
         };
 
-        window.shareWhatsAppPending = (data) => {
+        window.shareWhatsAppPending = (empId) => {
+            const container = document.getElementById('view-container');
+            const check = container.querySelector(`.pending-check[data-empid="${empId}"]`);
+            if (!check) return;
+
+            const name = check.closest('tr').querySelector('td:nth-child(2)').textContent.trim();
+            const logs = JSON.parse(check.getAttribute('data-full-logs'));
+            const total = parseFloat(check.dataset.net);
+            const hours = parseFloat(check.dataset.hours);
+            const phone = check.getAttribute('data-phone');
+
             let logText = "";
-            data.logs.sort((a, b) => new Date(a.date) - new Date(b.date)).forEach(l => {
+            logs.sort((a, b) => new Date(a.date) - new Date(b.date)).forEach(l => {
                 logText += `• ${l.date.split('T')[0]}: ${parseFloat(l.hours).toFixed(1)}h = ₡${Math.round(l.net).toLocaleString()}%0A`;
             });
 
             const text = `*RESUMEN DE PAGO PENDIENTE - TOM TOM WOK*%0A%0A` +
-                `*Empleado:* ${data.name}%0A` +
-                `*Total Horas:* ${data.hours.toFixed(1)}h%0A` +
-                `*Monto Total:* ₡${Math.round(data.total).toLocaleString()}%0A%0A` +
+                `*Empleado:* ${name}%0A` +
+                `*Total Horas:* ${hours.toFixed(1)}h%0A` +
+                `*Monto Total:* ₡${Math.round(total).toLocaleString()}%0A%0A` +
                 `*Detalle por día:*%0A${logText}%0A` +
                 `¡Listo para pago! 🍜`;
 
-            const phone = data.phone ? data.phone.replace(/\D/g, '') : '';
-            window.open(`https://wa.me/${phone}?text=${text}`, '_blank');
+            const cleanPhone = phone ? phone.replace(/\D/g, '') : '';
+            window.open(`https://wa.me/${cleanPhone}?text=${text}`, '_blank');
         };
 
         window.shareWhatsApp = async (id) => {
