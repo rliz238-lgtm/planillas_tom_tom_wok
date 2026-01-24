@@ -1661,6 +1661,8 @@ const Views = {
                     hours: hours,
                     amount: amount,
                     date: dateFin || Storage.getLocalDate(),
+                    dateIni: dateIni,
+                    dateFin: dateFin,
                     employee_id: emp ? emp.id : null,
                     rate: emp ? parseFloat(emp.hourly_rate) : (hours > 0 ? (amount / hours) : 3500)
                 });
@@ -1740,16 +1742,26 @@ const Views = {
                                 }
                             }
 
-                            // Guardar el log de horas vinculándolo al ID encontrado/creado
-                            const logResult = await Storage.add('logs', {
+                            // Guardar directamente en la tabla de pagos (historial)
+                            const paymentResult = await Storage.add('payments', {
                                 employeeId: parseInt(empId),
-                                date: item.date,
+                                amount: item.amount,
                                 hours: item.hours,
-                                notes: 'Importado de Excel',
-                                isImported: true
+                                deductionCCSS: 0,
+                                netAmount: item.amount,
+                                date: Storage.getLocalDate(), // Fecha de hoy como fecha de proceso del pago
+                                isImported: true,
+                                startDate: item.dateIni,
+                                endDate: item.dateFin,
+                                logsDetail: [{
+                                    date: item.dateFin,
+                                    hours: item.hours,
+                                    net: item.amount,
+                                    note: 'Importado de Excel (Liquidación Semanal)'
+                                }]
                             });
 
-                            if (logResult.success) {
+                            if (paymentResult.success) {
                                 successCount++;
                             } else {
                                 errorCount++;
