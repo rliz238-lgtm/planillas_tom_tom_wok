@@ -210,41 +210,42 @@
                 </div>
             </form>
         </div>
-        <dialog id="payroll-detail-modal">
-            <div class="modal-content" style="max-width: 600px; max-height: 85vh; overflow-y: auto;">
-                <button class="modal-close-btn"
-                    onclick="document.getElementById('payroll-detail-modal').close()">✕</button>
-                <h3 id="payroll-detail-title" style="margin-bottom: 1.5rem">Detalle de Pago</h3>
-                <div id="payroll-detail-info"
-                    style="margin-bottom: 2rem; padding: 1rem; background: rgba(255,255,255,0.05); border-radius: 12px; border-left: 4px solid var(--primary);">
-                    <!-- Employee info here -->
-                </div>
-                <div class="table-container">
-                    <table style="font-size: 0.9rem;">
-                        <thead>
-                            <tr>
-                                <th>Fecha</th>
-                                <th>Entrada</th>
-                                <th>Salida</th>
-                                <th>Horas</th>
-                                <th>Monto</th>
-                            </tr>
-                        </thead>
-                        <tbody id="payroll-detail-body">
-                            <!-- Log details here -->
-                        </tbody>
-                    </table>
-                </div>
-                <div style="margin-top: 20px; display: flex; justify-content: flex-end;">
-                    <button class="btn btn-secondary"
-                        onclick="document.getElementById('payroll-detail-modal').close()">Cerrar</button>
-                </div>
-            </div>
-        </dialog>
+    </dialog>
 
-        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-        <script src="main.js?v=14.3"></script>
+    <dialog id="payroll-detail-modal">
+        <div class="modal-content" style="max-width: 600px; max-height: 85vh; overflow-y: auto;">
+            <button class="modal-close-btn" onclick="document.getElementById('payroll-detail-modal').close()">✕</button>
+            <h3 id="payroll-detail-title" style="margin-bottom: 1.5rem">Detalle de Pago</h3>
+            <div id="payroll-detail-info"
+                style="margin-bottom: 2rem; padding: 1rem; background: rgba(255,255,255,0.05); border-radius: 12px; border-left: 4px solid var(--primary);">
+                <!-- Employee info here -->
+            </div>
+            <div class="table-container">
+                <table style="font-size: 0.9rem;">
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Entrada</th>
+                            <th>Salida</th>
+                            <th>Horas</th>
+                            <th>Monto</th>
+                        </tr>
+                    </thead>
+                    <tbody id="payroll-detail-body">
+                        <!-- Log details here -->
+                    </tbody>
+                </table>
+            </div>
+            <div style="margin-top: 20px; display: flex; justify-content: flex-end;">
+                <button class="btn btn-secondary"
+                    onclick="document.getElementById('payroll-detail-modal').close()">Cerrar</button>
+            </div>
+        </div>
+    </dialog>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="main.js?v=14.3"></script>
 </body>
 
 </html>

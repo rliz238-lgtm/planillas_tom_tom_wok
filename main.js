@@ -807,7 +807,6 @@ const Views = {
                     </table>
                 </div>
             </div>
-            </div>
         `;
     },
 
