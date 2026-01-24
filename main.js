@@ -983,33 +983,29 @@ const Views = {
         return `
             <div class="card-container">
                 <div style="margin-bottom: 2rem">
-                    <h3 style="color: var(--primary)">${isAdmin ? 'Calculadora de Pago por Periodo' : 'Portal de Registro de Horas'}</h3>
+                    <h3 style="color: var(--primary)">Calculadora de Horas por Colaborador</h3>
                     <p style="color: var(--text-muted); font-size: 0.9rem">
-                        ${isAdmin ? 'Ingrese las horas diarias para calcular el pago total de la semana o mes.' : 'Bienvenido ' + user.name + '. Ingrese sus horas laboradas aquí.'}
+                        Utilice esta herramienta para registrar las horas laboradas de los empleados y calcular su pago bruto.
                     </p>
                 </div>
 
                 <div class="form-group" style="max-width: 400px; margin-bottom: 2.5rem;">
                     <label style="font-weight: 600; color: var(--text-main); margin-bottom: 0.8rem; display: block;">
-                        ${isAdmin ? '👤 Seleccionar Colaborador' : '👤 Mi Perfil de Empleado'}
+                        👤 Seleccionar Empleado
                     </label>
-                    <select id="calc-employee-id" required ${isAdmin ? '' : 'disabled style="background: rgba(255,255,255,0.05); color: var(--text-muted); border-color: transparent;"'}>
-                        ${isAdmin ? '<option value="">-- Seleccione a quién registrar horas --</option>' : ''}
+                    <select id="calc-employee-id" required ${isAdmin ? '' : 'disabled'}>
+                        ${isAdmin ? '<option value="">-- Elija un empleado de la lista --</option>' : ''}
                         ${activeEmployees.map(e => `
-                            <option value="${e.id}" ${((isAdmin && activeEmployees.length === 1) || (!isAdmin && e.id == user.id)) ? 'selected' : ''}>
-                                ${e.name} ${isAdmin ? `(₡${parseFloat(e.hourly_rate).toLocaleString()}/h)` : ''}
+                            <option value="${e.id}" ${(!isAdmin && e.id == user.id) ? 'selected' : ''}>
+                                ${e.name} ${isAdmin ? `(Tarifa: ₡${parseFloat(e.hourly_rate).toLocaleString()}/h)` : ''}
                             </option>
                         `).join('')}
                     </select>
-                    ${isAdmin ? `
-                        <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem">
-                            Seleccione el empleado para cargar su tarifa por hora automáticamente.
-                        </p>
-                    ` : `
+                    ${!isAdmin ? `
                         <div style="margin-top: 1rem; padding: 0.8rem; background: rgba(99,102,241,0.1); border-radius: 10px; border-left: 4px solid var(--primary);">
-                            <span style="font-size: 0.85rem; color: var(--text-main)">Sesión activa como: <strong>${user.name}</strong></span>
+                            <span style="font-size: 0.85rem; color: var(--text-main)">Registrando horas para: <strong>${user.name}</strong></span>
                         </div>
-                    `}
+                    ` : ''}
                 </div>
 
                 <div class="table-container">
@@ -1020,7 +1016,7 @@ const Views = {
                                 <th>Entrada</th>
                                 <th>Salida</th>
                                 <th>Horas</th>
-                                <th>Acción</th>
+                                <th style="width: 50px"></th>
                             </tr>
                         </thead>
                         <tbody id="calc-tbody">
@@ -1030,18 +1026,18 @@ const Views = {
                 </div>
 
                 <div style="margin-top: 1.5rem; display: flex; gap: 10px;">
-                    <button class="btn" style="background: rgba(255,255,255,0.05)" id="calc-add-row">+ Añadir Día</button>
-                    <button class="btn btn-primary" id="calc-save-logs" disabled>💾 Guardar en Historial</button>
+                    <button class="btn" style="background: rgba(255,255,255,0.05)" id="calc-add-row">+ Agregar Día</button>
+                    <button class="btn btn-primary" id="calc-save-logs" disabled>💾 Guardar Registros</button>
                 </div>
 
-                <div id="calc-summary" style="margin-top: 3rem; padding: 2rem; background: rgba(99, 102, 241, 0.05); border-radius: 20px; border: 1px solid var(--primary); display: none;">
+                <div id="calc-summary" style="margin-top: 3rem; padding: 2.5rem; background: rgba(99, 102, 241, 0.05); border-radius: 20px; border: 1px solid var(--primary); display: none;">
                     <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 2rem; text-align: center;">
                         <div>
-                            <div style="color: var(--text-muted); font-size: 0.9rem">Total Horas</div>
+                            <div style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 0.5rem">Total de Horas</div>
                             <div class="value" id="calc-total-hours" style="font-size: 2.5rem; color: var(--primary)">0.00h</div>
                         </div>
                         <div>
-                            <div style="color: var(--text-muted); font-size: 0.9rem">Monto Total</div>
+                            <div style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 0.5rem">Monto Estimado</div>
                             <div class="value" id="calc-total-pay" style="font-size: 2.5rem; color: var(--success)">₡0</div>
                         </div>
                     </div>
