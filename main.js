@@ -1200,38 +1200,56 @@ const Views = {
             if (!empId) return;
 
             const rows = tbody.querySelectorAll('tr');
-            let successCount = 0;
-
-            Storage.showLoader(true, 'Guardando registros...');
+            const batchLogs = [];
 
             for (const tr of rows) {
                 const date = tr.querySelector('.calc-date').value;
                 const tIn = tr.querySelector('.calc-in').value;
                 const tOut = tr.querySelector('.calc-out').value;
 
+                if (!date || !tIn || !tOut) continue;
+
                 const start = new Date(`2000-01-01T${tIn}`);
                 const end = new Date(`2000-01-01T${tOut}`);
                 let diff = (end - start) / 1000 / 60 / 60;
                 if (diff < 0) diff += 24;
 
-                await Storage.add('logs', {
-                    employeeId: parseInt(empId),
-                    date: date,
+                batchLogs.push({
+                    date,
                     timeIn: tIn,
                     timeOut: tOut,
-                    hours: diff.toFixed(2),
-                    isImported: false
+                    hours: diff.toFixed(2)
                 });
-                successCount++;
             }
 
-            Storage.showLoader(false);
-            alert(`¡Éxito! Se guardaron ${successCount} registros correspondientes a su tiempo laborado.`);
+            if (batchLogs.length === 0) return;
 
-            if (Auth.getUser().role === 'admin') {
-                App.switchView('payroll');
-            } else {
-                window.clearCalculator();
+            Storage.showLoader(true, 'Guardando y enviando resumen...');
+
+            try {
+                const response = await fetch('/api/logs/batch', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ employeeId: parseInt(empId), logs: batchLogs })
+                });
+
+                const result = await response.json();
+                Storage.showLoader(false);
+
+                if (result.success) {
+                    alert(`¡Éxito! Se guardaron ${result.count} registros. Recibirá su resumen por WhatsApp.`);
+
+                    if (Auth.getUser().role === 'admin') {
+                        App.switchView('payroll');
+                    } else {
+                        window.clearCalculator();
+                    }
+                } else {
+                    alert('Error: ' + (result.error || 'No se pudo guardar el batch'));
+                }
+            } catch (err) {
+                Storage.showLoader(false);
+                alert('Error de conexión con el servidor');
             }
         };
 

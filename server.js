@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
+const https = require('https');
 const db = require('./db');
 
 const app = express();
@@ -257,6 +258,107 @@ app.delete('/api/logs/employee/:employeeId', async (req, res) => {
         await db.query('DELETE FROM logs WHERE employee_id = $1', [req.params.employeeId]);
         res.json({ success: true });
     } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// --- Batch Logs & WhatsApp Summary ---
+async function sendWhatsAppMessage(number, text) {
+    const apiUrl = process.env.EVOLUTION_API_URL;
+    const apiKey = process.env.EVOLUTION_API_KEY;
+    const instance = process.env.EVOLUTION_INSTANCE_NAME;
+
+    if (!apiUrl || !apiKey || !instance) {
+        console.warn('⚠️ Evolution API no está configurada en .env');
+        return;
+    }
+
+    const cleanNumber = number.replace(/\D/g, '');
+    const data = JSON.stringify({
+        number: cleanNumber,
+        text: text
+    });
+
+    const options = {
+        hostname: new URL(apiUrl).hostname,
+        path: `/message/sendText/${instance}`,
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'apikey': apiKey
+        }
+    };
+
+    const req = https.request(options, (res) => {
+        let responseBody = '';
+        res.on('data', (chunk) => { responseBody += chunk; });
+        res.on('end', () => {
+            if (res.statusCode >= 200 && res.statusCode < 300) {
+                console.log(`✅ WhatsApp enviado a ${cleanNumber}`);
+            } else {
+                console.error(`❌ Error Evolution API (${res.statusCode}):`, responseBody);
+            }
+        });
+    });
+
+    req.on('error', (e) => {
+        console.error('❌ Error enviando WhatsApp:', e.message);
+    });
+
+    req.write(data);
+    req.end();
+}
+
+app.post('/api/logs/batch', async (req, res) => {
+    const { employeeId, logs } = req.body;
+
+    if (!employeeId || !logs || !Array.isArray(logs)) {
+        return res.status(400).json({ error: 'Datos de batch inválidos' });
+    }
+
+    try {
+        // 1. Obtener datos del empleado
+        const empRes = await db.query('SELECT * FROM employees WHERE id = $1', [employeeId]);
+        if (empRes.rows.length === 0) return res.status(404).json({ error: 'Empleado no encontrado' });
+        const emp = empRes.rows[0];
+
+        let totalH = 0;
+        let totalAmt = 0;
+        let summaryDetails = "";
+
+        // Iniciar transacción (opcional pero recomendado para batch)
+        await db.query('BEGIN');
+
+        for (const log of logs) {
+            const { date, hours, timeIn, timeOut } = log;
+            await db.query(
+                'INSERT INTO logs (employee_id, date, hours, time_in, time_out, is_imported) VALUES ($1, $2, $3, $4, $5, $6)',
+                [employeeId, date, hours, timeIn, timeOut, false]
+            );
+
+            const h = parseFloat(hours);
+            totalH += h;
+            const gross = h * parseFloat(emp.hourly_rate);
+            const deduction = emp.apply_ccss ? (gross * 0.1067) : 0;
+            const net = gross - deduction;
+            totalAmt += net;
+
+            const dayName = new Date(date + 'T00:00:00').toLocaleString('es-ES', { weekday: 'short' }).toUpperCase();
+            summaryDetails += `• ${dayName} ${date}: ${timeIn} - ${timeOut} (${h.toFixed(1)}h) → ₡${Math.round(net).toLocaleString()}\n`;
+        }
+
+        await db.query('COMMIT');
+
+        // 3. Enviar WhatsApp si hay número
+        if (emp.phone) {
+            const messageText = `*REGISTRO DE HORAS TTW*\n\n*Empleado:* ${emp.name}\n*Total Horas:* ${totalH.toFixed(1)}h\n*Monto Est.:* ₡${Math.round(totalAmt).toLocaleString()}\n\n*DETALLE:*\n${summaryDetails}`;
+            sendWhatsAppMessage(emp.phone, messageText);
+        }
+
+        res.json({ success: true, count: logs.length });
+    } catch (err) {
+        await db.query('ROLLBACK');
+        console.error("❌ Error en batch logs:", err.message);
         res.status(500).json({ error: err.message });
     }
 });
