@@ -351,13 +351,19 @@ app.post('/api/logs/batch', async (req, res) => {
 
             const h = parseFloat(hours);
             totalH += h;
-            const gross = h * parseFloat(emp.hourly_rate);
+            // Cálculo del monto bruto considerando día doble
+            const hourlyRate = parseFloat(emp.hourly_rate);
+            const gross = h * hourlyRate;
             const deduction = emp.apply_ccss ? (gross * 0.1067) : 0;
             const net = gross - deduction;
             totalAmt += net;
 
             const dayName = new Date(date + 'T00:00:00').toLocaleString('es-ES', { weekday: 'short' }).toUpperCase();
-            summaryDetails += `• ${dayName} ${date}: ${timeIn} - ${timeOut} (${h.toFixed(1)}h) → ₡${Math.round(net).toLocaleString()}\n`;
+            let logInfo = `(${h.toFixed(1)}h)`;
+            if (isDoubleDay) logInfo += " [DOBLE]";
+            if (parseFloat(deductionHours) > 0) logInfo += ` [-${deductionHours}h almuerzo]`;
+
+            summaryDetails += `• ${dayName} ${date}: ${timeIn} - ${timeOut} ${logInfo} → ₡${Math.round(net).toLocaleString()}\n`;
         }
 
         await db.query('COMMIT');

@@ -273,8 +273,13 @@ header h2 {
 table {
     width: 100%;
     border-collapse: collapse;
-    min-width: 800px;
+    min-width: 900px;
     /* Asegurar que las columnas tengan espacio */
+}
+
+td {
+    white-space: nowrap;
+    text-overflow: ellipsis;
 }
 
 th {
@@ -477,12 +482,12 @@ dialog {
     background: var(--bg-card);
     padding: 0;
     max-width: 95vw;
-    width: 800px;
+    width: 900px;
     /* Más ancho */
     max-height: 90vh;
     margin: auto;
     color: white;
-    overflow: hidden;
+    overflow-x: auto;
 }
 
 dialog[open] {
@@ -703,6 +708,7 @@ dialog[open] {
 
     .grid-2 {
         grid-template-columns: 1fr;
+        gap: 1rem;
     }
 
     .card-container {
@@ -746,8 +752,18 @@ dialog[open] {
     }
 
     .table-container table {
-        min-width: 1000px;
+        min-width: 1200px;
         /* Forzar scroll horizontal en tablas muy densas para no romper layout */
+    }
+
+    .stats-grid {
+        grid-template-columns: 1fr !important;
+        gap: 1rem;
+    }
+
+    /* Dashboard mobile scroll fix */
+    .stats-grid {
+        overflow-x: hidden;
     }
 }
 

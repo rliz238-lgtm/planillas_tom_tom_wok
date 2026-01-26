@@ -59,9 +59,9 @@ const PayrollHelpers = {
                 <td>${l.time_in || '--'}</td><td>${l.time_out || '--'}</td>
                 <td>
                     <div style="font-weight:700">${parseFloat(l.hours).toFixed(1)}h</div>
-                    ${isDouble ? '<div style="font-size:0.7rem; color:var(--warning)">Doble</div>' : ''}
-                    ${l.deduction_hours > 0 ? `<div style="font-size:0.7rem; color:var(--text-muted)">-${l.deduction_hours}h rebajo</div>` : ''}
                 </td>
+                <td style="text-align:center">${isDouble ? '✅' : '--'}</td>
+                <td style="text-align:center">${l.deduction_hours > 0 ? l.deduction_hours + 'h' : '--'}</td>
                 <td style="display:flex; gap:5px; align-items:center;">
                     <span style="color:var(--success); font-weight:600;">₡${Math.round(logNet).toLocaleString()}</span>
                     <button class="btn btn-primary" style="padding:4px 8px; font-size:0.75rem;" onclick="PayrollHelpers.payLine(${l.id},${l.employee_id},'${l.date.split('T')[0]}',${logNet},${l.hours},${l.deduction || 0})" title="Pagar este día únicamente">💰</button>
@@ -148,9 +148,9 @@ const PayrollHelpers = {
                 <td>${l.time_out || '--'}</td>
                 <td>
                     <div style="font-weight:600">${parseFloat(l.hours).toFixed(1)}h</div>
-                    ${l.is_double_day ? '<div style="font-size:0.7rem; color:var(--warning)">Doble</div>' : ''}
-                    ${l.deduction_hours > 0 ? `<div style="font-size:0.7rem; color:var(--text-muted)">-${l.deduction_hours}h rebajo</div>` : ''}
                 </td>
+                <td style="text-align:center">${l.is_double_day ? '✅' : '--'}</td>
+                <td style="text-align:center">${l.deduction_hours > 0 ? l.deduction_hours + 'h' : '--'}</td>
                 <td style="display:flex; gap:5px; align-items:center;">
                     <span style="font-weight:600">₡${Math.round(logNet).toLocaleString()}</span>
                     <button class="btn btn-whatsapp" style="padding:4px 8px; font-size:0.75rem;" onclick="PayrollHelpers.shareWhatsAppLine(${emp ? emp.id : 0}, '${l.date.split('T')[0]}', ${l.hours}, ${logNet}, '${l.time_in}', '${l.time_out}')" title="Re-enviar comprobante por WhatsApp">✉️</button>
@@ -1397,7 +1397,18 @@ const Views = {
             if (isDouble) {
                 empData.doubleHours += hours;
             } else {
+                // Cálculo simple de extras basado en el threshold semanal del empleado
+                // Nota: Esto es acumulativo, para un reporte exacto por día se requiere lógica más compleja
+                // pero aquí mantenemos la lógica de negocio actual.
                 empData.regularHours += hours;
+            }
+
+            const otThreshold = parseFloat(emp.overtime_threshold || 48);
+            const otEnabled = emp.enable_overtime !== false;
+
+            // Recalcular extras en base al acumulado (aproximado para el resumen)
+            if (otEnabled && empData.regularHours > otThreshold) {
+                empData.extraHours = empData.regularHours - otThreshold;
             }
 
             const gross = hours * parseFloat(emp.hourly_rate);
@@ -1410,12 +1421,6 @@ const Views = {
             empData.net += net;
             empData.logs.push({ ...log, isDouble, hours, gross, deduction, net });
 
-            const logDate = log.date.split('T')[0];
-            const empStart = empData.startDate.split('T')[0];
-            const empEnd = empData.endDate.split('T')[0];
-
-            if (logDate < empStart) empData.startDate = logDate;
-            if (logDate > empEnd) empData.endDate = logDate;
         });
 
         // Convertir objeto en array para el render y guardar en estado global temporal
@@ -1439,6 +1444,8 @@ const Views = {
                                 <th>Empleado</th>
                                 <th>Desde</th>
                                 <th>Hasta</th>
+                                <th>Extras</th>
+                                <th>Dobles</th>
                                 <th>Total Horas</th>
                                 <th>CCSS (Est.)</th>
                                 <th>Monto Neto</th>
@@ -1463,6 +1470,8 @@ const Views = {
                                     </td>
                                     <td style="font-size: 0.85rem">${ps.startDate.split('T')[0]}</td>
                                     <td style="font-size: 0.85rem">${ps.endDate.split('T')[0]}</td>
+                                    <td style="color: var(--warning)">${ps.extraHours.toFixed(1)}h</td>
+                                    <td style="color: var(--accent)">${ps.doubleHours.toFixed(1)}h</td>
                                     <td style="font-weight: 600">${ps.hours.toFixed(1)}h</td>
                                     <td style="color: var(--danger)">₡${Math.round(ps.deduction).toLocaleString()}</td>
                                     <td style="color: var(--success); font-weight: 700;">₡${Math.round(ps.net).toLocaleString()}</td>
@@ -1600,7 +1609,10 @@ const Views = {
                     timeOut: tOut,
                     isDoubleDay: isDouble,
                     deductionHours: deduction,
-                    hours: diff.toFixed(2)
+                    hours: diff.toFixed(2),
+                    employeeId: l.employee_id,
+                    isPaid: l.is_paid || false,
+                    isImported: l.is_imported || false
                 };
 
                 Storage.showLoader(true, 'Actualizando registro...');

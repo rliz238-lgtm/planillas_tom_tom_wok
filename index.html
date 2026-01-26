@@ -202,22 +202,22 @@
                     <input type="date" name="endDate">
                 </div>
                 <div class="form-group"
-                    style="display: flex; align-items: center; gap: 10px; background: rgba(99,102,241,0.05); padding: 10px; border-radius: 8px; border: 1px solid rgba(99,102,241,0.2);">
-                    <input type="checkbox" name="applyCCSS" id="apply-ccss-check"
-                        style="width: 20px; height: 20px; cursor: pointer;">
-                    <label for="apply-ccss-check" style="margin: 0; cursor: pointer; font-weight: 600;">Aplicar
-                        Rebajo CCSS (10.67%)</label>
-                </div>
-
-                <div class="form-group"
-                    style="background: rgba(99,102,241,0.05); padding: 10px; border-radius: 8px; border: 1px solid rgba(99,102,241,0.2); margin-bottom: 1rem;">
+                    style="background: rgba(99,102,241,0.05); padding: 10px; border-radius: 8px; border: 1px solid rgba(99,102,241,0.2); margin-bottom: 0.5rem;">
                     <div style="display: flex; align-items: center; gap: 10px;">
                         <input type="checkbox" name="enableOvertime" id="enable-ot-check"
-                            style="width: 18px; height: 18px; cursor: pointer;" checked>
+                            style="width: 20px; height: 20px; cursor: pointer;" checked>
                         <label for="enable-ot-check"
                             style="margin: 0; cursor: pointer; font-weight: 600; color: var(--primary);">Habilitar
                             Cálculo de Horas Extras</label>
                     </div>
+                </div>
+
+                <div class="form-group"
+                    style="display: flex; align-items: center; gap: 10px; background: rgba(99,102,241,0.05); padding: 10px; border-radius: 8px; border: 1px solid rgba(99,102,241,0.2); margin-bottom: 0.5rem;">
+                    <input type="checkbox" name="applyCCSS" id="apply-ccss-check"
+                        style="width: 20px; height: 20px; cursor: pointer;">
+                    <label for="apply-ccss-check" style="margin: 0; cursor: pointer; font-weight: 600;">Aplicar
+                        Rebajo CCSS (10.67%)</label>
                 </div>
 
                 <div class="grid-2"
@@ -243,7 +243,7 @@
     </dialog>
 
     <dialog id="payroll-detail-modal">
-        <div class="modal-content" style="max-width: 600px; max-height: 85vh; overflow-y: auto;">
+        <div class="modal-content" style="max-width: 1100px; max-height: 85vh; overflow-y: auto;">
             <button class="modal-close-btn" onclick="document.getElementById('payroll-detail-modal').close()">✕</button>
             <h3 id="payroll-detail-title" style="margin-bottom: 1.5rem">Detalle de Pago</h3>
             <div id="payroll-detail-info"
@@ -254,11 +254,13 @@
                 <table style="font-size: 0.9rem;">
                     <thead>
                         <tr>
-                            <th>Fecha</th>
-                            <th>Entrada</th>
-                            <th>Salida</th>
-                            <th>Horas</th>
-                            <th>Monto</th>
+                            <th title="Fecha del registro">Fecha</th>
+                            <th title="Hora de entrada">Entrada</th>
+                            <th title="Hora de salida">Salida</th>
+                            <th title="Paga doble por feriado">¿Doble?</th>
+                            <th title="Horas de almuerzo rebajadas">Almuerzo</th>
+                            <th title="Total de horas laboradas">Horas Totales</th>
+                            <th title="Monto neto a pagar">Monto Neto</th>
                         </tr>
                     </thead>
                     <tbody id="payroll-detail-body">
@@ -296,7 +298,7 @@
     <script src="main.js?v=15.1"></script>
     <!-- Modal para edición detallada de Log -->
     <dialog id="edit-log-modal" class="modal">
-        <div class="modal-content" style="max-width: 500px">
+        <div class="modal-content" style="max-width: 700px">
             <button class="modal-close-btn" onclick="document.getElementById('edit-log-modal').close()">✕</button>
             <h3 id="edit-log-title" style="color: var(--primary); margin-bottom: 2rem">Editar Registro de Horas</h3>
             <form id="edit-log-form">

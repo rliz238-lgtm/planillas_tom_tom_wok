@@ -154,6 +154,8 @@ const EmployeePortal = {
                                     <th>Fecha</th>
                                     <th>Entrada</th>
                                     <th>Salida</th>
+                                    <th>Doble</th>
+                                    <th>Almuerzo (h)</th>
                                     <th>Horas</th>
                                     <th>Acción</th>
                                 </tr>
@@ -241,6 +243,8 @@ const EmployeePortal = {
                 <td><input type="date" class="date-input" value="${dateStr}" style="width: 100%;"></td>
                 <td><input type="time" class="time-in" value="${lastIn}" style="width: 100%;"></td>
                 <td><input type="time" class="time-out" value="${lastOut}" style="width: 100%;"></td>
+                <td style="text-align: center;"><input type="checkbox" class="is-double-day" style="width: 18px; height: 18px;"></td>
+                <td><input type="number" class="deduction-hours" value="0" step="0.5" style="width: 100%;"></td>
                 <td class="hours-cell" style="font-weight: 600;">0.00h</td>
                 <td>
                     <button class="btn" onclick="this.closest('tr').remove(); EmployeePortal.updateTotal();" style="padding: 4px 8px; background: rgba(239,68,68,0.1); color: var(--danger);">
@@ -266,6 +270,8 @@ const EmployeePortal = {
             rows.forEach(tr => {
                 const timeIn = tr.querySelector('.time-in').value;
                 const timeOut = tr.querySelector('.time-out').value;
+                const isDouble = tr.querySelector('.is-double-day').checked;
+                const deduction = parseFloat(tr.querySelector('.deduction-hours').value || 0);
                 const hoursCell = tr.querySelector('.hours-cell');
 
                 if (timeIn && timeOut) {
@@ -274,8 +280,11 @@ const EmployeePortal = {
                     let diff = (end - start) / 1000 / 60 / 60;
                     if (diff < 0) diff += 24;
 
-                    hoursCell.textContent = diff.toFixed(2) + 'h';
-                    total += diff;
+                    let dayTotal = Math.max(0, diff - deduction);
+                    if (isDouble) dayTotal *= 2;
+
+                    hoursCell.textContent = dayTotal.toFixed(2) + 'h';
+                    total += dayTotal;
                 } else {
                     hoursCell.textContent = '0.00h';
                 }
@@ -300,6 +309,8 @@ const EmployeePortal = {
                     const date = tr.querySelector('.date-input').value;
                     const timeIn = tr.querySelector('.time-in').value;
                     const timeOut = tr.querySelector('.time-out').value;
+                    const isDouble = tr.querySelector('.is-double-day').checked;
+                    const deduction = parseFloat(tr.querySelector('.deduction-hours').value || 0);
 
                     if (!date || !timeIn || !timeOut) continue;
 
@@ -307,6 +318,9 @@ const EmployeePortal = {
                     const end = new Date(`2000-01-01T${timeOut}`);
                     let diff = (end - start) / 1000 / 60 / 60;
                     if (diff < 0) diff += 24;
+
+                    let dayTotal = Math.max(0, diff - deduction);
+                    if (isDouble) dayTotal *= 2;
 
                     const response = await fetch('/api/logs', {
                         method: 'POST',
@@ -316,7 +330,9 @@ const EmployeePortal = {
                             date: date,
                             timeIn: timeIn,
                             timeOut: timeOut,
-                            hours: diff.toFixed(2)
+                            hours: dayTotal.toFixed(2),
+                            isDoubleDay: isDouble,
+                            deductionHours: deduction
                         })
                     });
 
