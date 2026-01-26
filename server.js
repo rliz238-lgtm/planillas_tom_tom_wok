@@ -295,6 +295,38 @@ app.delete('/api/payments/:id', async (req, res) => {
 
 // La ruta /api/employee-auth estaba duplicada, se mantiene una sola instancia.
 
+// --- Webhook WhatsApp (Evolution API) ---
+app.post('/api/webhook/whatsapp', async (req, res) => {
+    try {
+        const { event, data } = req.body;
+        console.log(`📩 Webhook recibido: ${event}`);
+
+        if (event === 'MESSAGES_UPSERT') {
+            const message = data.message;
+            const remoteJid = data.key.remoteJid;
+            const fromMe = data.key.fromMe;
+            const pushName = data.pushName;
+
+            // Extraer texto del mensaje (soporta texto simple y respuesta con texto)
+            const text = message.conversation ||
+                (message.extendedTextMessage && message.extendedTextMessage.text) ||
+                "";
+
+            if (!fromMe && text) {
+                console.log(`💬 Mensaje de ${pushName} (${remoteJid}): ${text}`);
+
+                // Aquí se puede implementar lógica de respuesta automática o 
+                // procesamiento de comandos para los empleados.
+            }
+        }
+
+        res.status(200).json({ status: 'received' });
+    } catch (err) {
+        console.error('❌ Error en webhook:', err.message);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
 // --- Mantenimiento ---
 app.delete('/api/maintenance/clear-all', async (req, res) => {
     const { target } = req.query; // 'logs', 'payments', 'employees', 'all'
