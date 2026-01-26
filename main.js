@@ -138,7 +138,7 @@ const PayrollHelpers = {
                 <div><strong>Monto:</strong> ₡${Math.round(p.amount).toLocaleString()}</div>
                 <div><strong>Fecha:</strong> ${p.date.split('T')[0]}</div>
             </div>`;
-        body.innerHTML = (p.logs_detail || []).map(l => {
+        body.innerHTML = (p.logs_detail || []).map((l, index) => {
             const day = new Date(l.date + 'T00:00:00').toLocaleString('es-ES', { weekday: 'short' }).toUpperCase();
             const logNet = l.net || (parseFloat(l.hours) * (emp ? parseFloat(emp.hourly_rate) : 0));
             return `
@@ -153,11 +153,88 @@ const PayrollHelpers = {
                 <td style="text-align:center">${l.deduction_hours > 0 ? l.deduction_hours + 'h' : '--'}</td>
                 <td style="display:flex; gap:5px; align-items:center;">
                     <span style="font-weight:600">₡${Math.round(logNet).toLocaleString()}</span>
+                    <button class="btn btn-secondary" style="padding:4px 8px; font-size:0.75rem;" onclick="PayrollHelpers.editPaidLogLine(${p.id}, ${index})" title="Editar este día pagado">✏️</button>
                     <button class="btn btn-whatsapp" style="padding:4px 8px; font-size:0.75rem;" onclick="PayrollHelpers.shareWhatsAppLine(${emp ? emp.id : 0}, '${l.date.split('T')[0]}', ${l.hours}, ${logNet}, '${l.time_in}', '${l.time_out}')" title="Re-enviar comprobante por WhatsApp">✉️</button>
                 </td>
             </tr>`;
         }).join('');
         modal.showModal();
+    },
+
+    editPaidLogLine: async (paymentId, logIndex) => {
+        const payments = await Storage.get('payments');
+        const p = payments.find(x => x.id == paymentId);
+        if (!p || !p.logs_detail[logIndex]) return;
+
+        const l = p.logs_detail[logIndex];
+        const editLogModal = document.getElementById('edit-log-modal');
+        const editLogForm = document.getElementById('edit-log-form');
+
+        editLogForm.logId.value = `paid_${paymentId}_${logIndex}`;
+        editLogForm.date.value = l.date.split('T')[0];
+        editLogForm.timeIn.value = l.time_in || '08:00';
+        editLogForm.timeOut.value = l.time_out || '17:00';
+        editLogForm.isDoubleDay.checked = !!l.is_double_day;
+        editLogForm.deductionHours.value = l.deduction_hours || 0;
+
+        // Custom submit for paid logs
+        const originalSubmit = editLogForm.onsubmit;
+        editLogForm.onsubmit = async (e) => {
+            e.preventDefault();
+            const formData = new FormData(editLogForm);
+            const tIn = formData.get('timeIn');
+            const tOut = formData.get('timeOut');
+            const isDouble = editLogForm.isDoubleDay.checked;
+            const deduction = parseFloat(formData.get('deductionHours') || 0);
+
+            const start = new Date(`2000-01-01T${tIn}`);
+            const end = new Date(`2000-01-01T${tOut}`);
+            let diff = (end - start) / 1000 / 60 / 60;
+            if (diff < 0) diff += 24;
+            diff = Math.max(0, diff - deduction);
+            const rawHours = diff;
+            if (isDouble) diff *= 2;
+
+            const employees = await Storage.get('employees');
+            const emp = employees.find(e => e.id == p.employee_id);
+            const rate = emp ? parseFloat(emp.hourly_rate) : 0;
+            const logNet = diff * rate;
+
+            // Update log_detail entry
+            p.logs_detail[logIndex] = {
+                ...l,
+                date: formData.get('date'),
+                time_in: tIn,
+                time_out: tOut,
+                is_double_day: isDouble,
+                deduction_hours: deduction,
+                hours: diff.toFixed(2),
+                net: logNet
+            };
+
+            // Recalculate payment totals
+            const totalHours = p.logs_detail.reduce((s, log) => s + parseFloat(log.hours), 0);
+            const totalNet = p.logs_detail.reduce((s, log) => s + (log.net || (parseFloat(log.hours) * rate)), 0);
+
+            Storage.showLoader(true, 'Actualizando pago...');
+            await Storage.update('payments', paymentId, {
+                ...p,
+                hours: totalHours,
+                amount: totalNet,
+                net_amount: totalNet,
+                logs_detail: p.logs_detail
+            });
+            Storage.showLoader(false);
+            editLogModal.close();
+
+            // Restore original submit and refresh
+            editLogForm.onsubmit = originalSubmit;
+            const detailModal = document.getElementById('payroll-detail-modal');
+            if (detailModal && detailModal.open) detailModal.close();
+            App.renderView('payroll');
+        };
+
+        editLogModal.showModal();
     }
 };
 window.PayrollHelpers = PayrollHelpers;
@@ -1108,9 +1185,9 @@ const Views = {
         return `
             <div class="card-container">
                 <div style="margin-bottom: 2rem">
-                    <h3 style="color: var(--primary)">Calculadora de Horas por Colaborador</h3>
+                    <h3 style="color: var(--primary)">Calculadora de Horas (Horas Dobles y Almuerzo)</h3>
                     <p style="color: var(--text-muted); font-size: 0.9rem">
-                        Utilice esta herramienta para registrar las horas laboradas de los empleados y calcular su pago bruto.
+                        Utilice esta herramienta para registrar las horas laboradas de los empleados y calcular su pago bruto (incluye feriados y rebajos).
                     </p>
                 </div>
 
@@ -1504,12 +1581,14 @@ const Views = {
                         <thead>
                             <tr>
                                 <th style="width: 40px"><input type="checkbox" id="select-all-payments"></th>
-                                <th>Fecha Pago</th>
-                                <th>Empleado</th>
-                                <th>Desde</th>
-                                <th>Hasta</th>
-                                <th>Horas</th>
-                                <th>Monto Neto</th>
+                                <th title="Fecha en que se realizó el pago">Fecha Pago</th>
+                                <th title="Nombre del colaborador">Empleado</th>
+                                <th title="Fecha de inicio del periodo">Desde</th>
+                                <th title="Fecha de fin del periodo">Hasta</th>
+                                <th title="Horas extras calculadas">Extras</th>
+                                <th title="Horas dobles por feriado">Dobles</th>
+                                <th title="Total de horas pagadas">Horas</th>
+                                <th title="Monto neto recibido">Monto Neto</th>
                                 <th>Acciones</th>
                             </tr>
                         </thead>
@@ -1527,6 +1606,8 @@ const Views = {
                                         </td>
                                         <td style="font-size: 0.85rem">${p.start_date ? p.start_date.split('T')[0] : '—'}</td>
                                         <td style="font-size: 0.85rem">${p.end_date ? p.end_date.split('T')[0] : '—'}</td>
+                                        <td style="color: var(--warning)">${(p.logs_detail || []).reduce((s, l) => s + (parseFloat(l.extra || 0)), 0).toFixed(1)}h</td>
+                                        <td style="color: var(--accent)">${(p.logs_detail || []).reduce((s, l) => s + (l.is_double_day ? parseFloat(l.hours || 0) : 0), 0).toFixed(1)}h</td>
                                         <td>${parseFloat(p.hours || 0).toFixed(1)}h</td>
                                         <td style="color: var(--success); font-weight: 700;">₡${Math.round(p.amount).toLocaleString()}</td>
                                         <td style="display: flex; gap: 5px">
