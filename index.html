@@ -208,6 +208,18 @@
                     <label for="apply-ccss-check" style="margin: 0; cursor: pointer; font-weight: 600;">Aplicar
                         Rebajo CCSS (10.67%)</label>
                 </div>
+
+                <div class="grid-2"
+                    style="gap: 1rem; background: rgba(99,102,241,0.05); padding: 1rem; border-radius: 8px; border: 1px solid rgba(99,102,241,0.2);">
+                    <div class="form-group">
+                        <label>Límite Horas Extra (Semanales)</label>
+                        <input type="number" name="overtimeThreshold" placeholder="48" step="0.5">
+                    </div>
+                    <div class="form-group">
+                        <label>Multiplicador Extra (Ej: 1.5)</label>
+                        <input type="number" name="overtimeMultiplier" placeholder="1.5" step="0.1">
+                    </div>
+                </div>
                 <div style="display: flex; gap: 10px; margin-top: 20px;">
                     <button type="submit" class="btn btn-primary" style="flex:1">Guardar</button>
                     <button type="button" class="btn btn-secondary" style="flex:1"

@@ -58,11 +58,25 @@ const PayrollHelpers = {
                 <td style="display:flex; gap:5px; align-items:center;">
                     <span style="color:var(--success); font-weight:600;">₡${Math.round(l.net).toLocaleString()}</span>
                     <button class="btn btn-primary" style="padding:4px 8px; font-size:0.75rem;" onclick="PayrollHelpers.payLine(${l.id},${l.employee_id},'${l.date.split('T')[0]}',${l.net},${l.hours},${l.deduction})">Pagar</button>
+                    <button class="btn btn-secondary" style="padding:4px 8px; font-size:0.75rem;" onclick="PayrollHelpers.editLogLine(${l.id})">✏️</button>
                     <button class="btn btn-whatsapp" style="padding:4px 8px; font-size:0.75rem;" onclick="PayrollHelpers.shareWhatsAppLine(${l.employee_id}, '${l.date.split('T')[0]}', ${l.hours}, ${l.net}, '${l.time_in}', '${l.time_out}')" title="Enviar este día por WhatsApp">✉️</button>
                     <button class="btn btn-danger" style="padding:4px 8px; font-size:0.75rem;" onclick="window.deleteLog(${l.id})">🗑️</button>
                 </td>
             </tr>`).join('');
         modal.showModal();
+    },
+    editLogLine: async (id) => {
+        const logs = await Storage.get('logs');
+        const l = logs.find(x => x.id == id);
+        if (!l) return;
+        const newHours = prompt("Ingrese la nueva cantidad de horas:", l.hours);
+        if (newHours === null) return;
+        Storage.showLoader(true, 'Actualizando horas...');
+        await Storage.update('logs', id, { ...l, hours: parseFloat(newHours) });
+        Storage.showLoader(false);
+        const modal = document.getElementById('payroll-detail-modal');
+        if (modal) modal.close();
+        App.renderView('payroll');
     },
     shareWhatsAppLine: (empId, date, hours, amount, tIn, tOut) => {
         const employees = JSON.parse(localStorage.getItem('ttw_temp_employees') || '[]'); // Fallback or assume available
@@ -392,6 +406,8 @@ const App = {
             form.startDate.value = emp.start_date ? emp.start_date.split('T')[0] : '';
             form.endDate.value = emp.end_date ? emp.end_date.split('T')[0] : '';
             form.applyCCSS.checked = !!emp.apply_ccss;
+            form.overtimeThreshold.value = emp.overtime_threshold || 48;
+            form.overtimeMultiplier.value = emp.overtime_multiplier || 1.5;
 
             modal.showModal();
         };
@@ -447,6 +463,8 @@ const App = {
                 endDate: formData.get('endDate') || null,
                 status: formData.get('status'),
                 applyCCSS: form.applyCCSS.checked,
+                overtimeThreshold: parseFloat(formData.get('overtimeThreshold')) || 48,
+                overtimeMultiplier: parseFloat(formData.get('overtimeMultiplier')) || 1.5,
                 salaryHistory: []
             };
 
@@ -1128,6 +1146,7 @@ const Views = {
                         <div>
                             <div style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 0.5rem">Total de Horas</div>
                             <div class="value" id="calc-total-hours" style="font-size: 2.5rem; color: var(--primary)">0.00h</div>
+                            <div id="calc-overtime-info" style="font-size: 0.8rem; color: var(--text-muted); margin-top: 5px;"></div>
                         </div>
                         <div>
                             <div style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 0.5rem">Monto Estimado</div>
@@ -1176,12 +1195,14 @@ const Views = {
                 <td><input type="time" class="calc-in" value="${nextIn}"></td>
                 <td><input type="time" class="calc-out" value="${nextOut}"></td>
                 <td class="calc-subtotal" style="font-weight: 600">0.00h</td>
+                ${Auth.getUser().role === 'admin' ? '<td style="text-align:center"><input type="checkbox" class="calc-double"></td>' : ''}
                 <td><button class="btn" style="padding: 6px; color: var(--danger)" onclick="this.closest('tr').remove(); window.updateCalcTotal();">✕</button></td>
             `;
             tbody.appendChild(tr);
 
             tr.querySelectorAll('input').forEach(input => {
                 input.oninput = () => window.updateCalcTotal();
+                if (input.type === 'checkbox') input.onchange = () => window.updateCalcTotal();
             });
             window.updateCalcTotal();
         };
@@ -1197,18 +1218,37 @@ const Views = {
             rows.forEach(tr => {
                 const tIn = tr.querySelector('.calc-in').value;
                 const tOut = tr.querySelector('.calc-out').value;
+                const isDouble = tr.querySelector('.calc-double') ? tr.querySelector('.calc-double').checked : false;
+
                 if (tIn && tOut) {
                     const start = new Date(`2000-01-01T${tIn}`);
                     const end = new Date(`2000-01-01T${tOut}`);
                     let diff = (end - start) / 1000 / 60 / 60;
                     if (diff < 0) diff += 24;
-                    tr.querySelector('.calc-subtotal').textContent = diff.toFixed(2) + 'h';
-                    totalH += diff;
+
+                    const displayHours = isDouble ? diff * 2 : diff;
+                    tr.querySelector('.calc-subtotal').textContent = displayHours.toFixed(2) + 'h';
+                    totalH += displayHours;
                 }
             });
 
+            let finalPay = 0;
+            const otThreshold = emp ? parseFloat(emp.overtime_threshold || 48) : 48;
+            const otMultiplier = emp ? parseFloat(emp.overtime_multiplier || 1.5) : 1.5;
+            const otInfo = document.getElementById('calc-overtime-info');
+
+            if (totalH > otThreshold && Auth.getUser().role === 'admin') {
+                const baseH = otThreshold;
+                const extraH = totalH - otThreshold;
+                finalPay = (baseH * rate) + (extraH * rate * otMultiplier);
+                if (otInfo) otInfo.textContent = `Base: ${baseH.toFixed(1)}h | Extra: ${extraH.toFixed(1)}h (x${otMultiplier})`;
+            } else {
+                finalPay = totalH * rate;
+                if (otInfo) otInfo.textContent = "";
+            }
+
             document.getElementById('calc-total-hours').textContent = totalH.toFixed(2) + 'h';
-            document.getElementById('calc-total-pay').textContent = '₡' + Math.round(totalH * rate).toLocaleString();
+            document.getElementById('calc-total-pay').textContent = '₡' + Math.round(finalPay).toLocaleString();
 
             summary.style.display = totalH > 0 ? 'block' : 'none';
             saveBtn.disabled = !empId || totalH <= 0;
@@ -1237,6 +1277,7 @@ const Views = {
                 const date = tr.querySelector('.calc-date').value;
                 const tIn = tr.querySelector('.calc-in').value;
                 const tOut = tr.querySelector('.calc-out').value;
+                const isDouble = tr.querySelector('.calc-double') ? tr.querySelector('.calc-double').checked : false;
 
                 if (!date || !tIn || !tOut) continue;
 
@@ -1245,11 +1286,14 @@ const Views = {
                 let diff = (end - start) / 1000 / 60 / 60;
                 if (diff < 0) diff += 24;
 
+                const finalHours = isDouble ? diff * 2 : diff;
+
                 batchLogs.push({
                     date,
                     timeIn: tIn,
                     timeOut: tOut,
-                    hours: diff.toFixed(2)
+                    hours: finalHours.toFixed(2),
+                    isDoubleDay: isDouble
                 });
             }
 
@@ -1384,6 +1428,7 @@ const Views = {
                                         <button class="btn btn-primary" title="Ver Detalle" style="padding: 5px 10px" onclick="PayrollHelpers.showPayrollDetail(${ps.empId})">${PayrollHelpers.EYE_ICON}</button>
                                         <button class="btn btn-success" title="Pagar Todo" style="padding: 5px 10px; background: var(--success);" onclick="PayrollHelpers.payEmployeeGroup(${ps.empId})">💰</button>
                                         <button class="btn btn-whatsapp" title="WhatsApp" style="padding: 5px 10px" onclick="PayrollHelpers.shareWhatsAppPending(${ps.empId})">✉️</button>
+                                        <button class="btn btn-secondary" title="Editar Días" style="padding: 5px 10px" onclick="PayrollHelpers.showPayrollDetail(${ps.empId})">✏️</button>
                                         <button class="btn btn-danger" onclick="window.clearEmpLogs(${ps.empId})" style="padding: 4px 8px; font-size: 0.8rem" title="Limpiar">🗑️</button>
                                     </td>
                                 </tr>
@@ -1435,6 +1480,7 @@ const Views = {
                                         <td style="color: var(--success); font-weight: 700;">₡${Math.round(p.amount).toLocaleString()}</td>
                                         <td style="display: flex; gap: 5px">
                                             <button class="btn btn-primary" title="Ver Detalle" style="padding: 5px 10px" onclick="PayrollHelpers.showPaymentHistoryDetail('${p.id}')">${PayrollHelpers.EYE_ICON}</button>
+                                            <button class="btn btn-secondary" title="Editar" style="padding: 5px 10px" onclick="window.editPaymentRecord('${p.id}')">✏️</button>
                                             <button class="btn btn-whatsapp" title="WhatsApp" style="padding: 5px 10px" onclick="window.shareWhatsApp('${p.id}')">✉️</button>
                                             <button class="btn btn-danger" style="padding: 5px 10px" onclick="window.deletePayment('${p.id}')">🗑️</button>
                                         </td>
@@ -1504,6 +1550,22 @@ const Views = {
             App.renderView('payroll');
         };
 
+        window.editPaymentRecord = async (id) => {
+            const payments = await Storage.get('payments');
+            const p = payments.find(x => x.id == id);
+            if (!p) return;
+
+            const newAmount = prompt("Ingrese el nuevo monto neto del pago:", Math.round(p.amount));
+            if (newAmount === null) return;
+            const newHours = prompt("Ingrese el total de horas:", p.hours);
+            if (newHours === null) return;
+
+            Storage.showLoader(true, 'Actualizando pago...');
+            await Storage.update('payments', id, { ...p, amount: parseFloat(newAmount), hours: parseFloat(newHours), net_amount: parseFloat(newAmount) });
+            Storage.showLoader(false);
+            App.renderView('payroll');
+        };
+
         // Redefine mappings for global scope access
         window.showPayrollDetail = PayrollHelpers.showPayrollDetail;
         window.showPaymentHistoryDetail = PayrollHelpers.showPaymentHistoryDetail;
@@ -1511,6 +1573,7 @@ const Views = {
         window.shareWhatsAppPending = PayrollHelpers.shareWhatsAppPending;
         window.shareWhatsApp = Views.shareWhatsApp;
         window.payLine = PayrollHelpers.payLine;
+        window.editPaymentRecord = window.editPaymentRecord;
     },
 
     shareWhatsApp: async (id) => {

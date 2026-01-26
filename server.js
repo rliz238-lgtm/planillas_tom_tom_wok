@@ -156,7 +156,7 @@ app.get('/api/employees', async (req, res) => {
 });
 
 app.post('/api/employees', async (req, res) => {
-    const { name, cedula, phone, pin, position, hourlyRate, status, startDate, endDate, applyCCSS, salaryHistory } = req.body;
+    const { name, cedula, phone, pin, position, hourlyRate, status, startDate, endDate, applyCCSS, overtimeThreshold, overtimeMultiplier, salaryHistory } = req.body;
 
     // Validación de campos obligatorios
     if (!name || !hourlyRate || !startDate) {
@@ -165,8 +165,8 @@ app.post('/api/employees', async (req, res) => {
 
     try {
         const result = await db.query(
-            'INSERT INTO employees (name, cedula, phone, pin, position, hourly_rate, status, start_date, end_date, apply_ccss, salary_history) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *',
-            [name, cedula, phone, pin, position, hourlyRate, status || 'Active', startDate, endDate || null, applyCCSS || false, JSON.stringify(salaryHistory || [])]
+            'INSERT INTO employees (name, cedula, phone, pin, position, hourly_rate, status, start_date, end_date, apply_ccss, overtime_threshold, overtime_multiplier, salary_history) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *',
+            [name, cedula, phone, pin, position, hourlyRate, status || 'Active', startDate, endDate || null, applyCCSS || false, overtimeThreshold || 48, overtimeMultiplier || 1.5, JSON.stringify(salaryHistory || [])]
         );
         res.json(result.rows[0]);
     } catch (err) {
@@ -177,11 +177,11 @@ app.post('/api/employees', async (req, res) => {
 
 app.put('/api/employees/:id', async (req, res) => {
     const { id } = req.params;
-    const { name, cedula, phone, pin, position, hourlyRate, status, startDate, endDate, applyCCSS, salaryHistory } = req.body;
+    const { name, cedula, phone, pin, position, hourlyRate, status, startDate, endDate, applyCCSS, overtimeThreshold, overtimeMultiplier, salaryHistory } = req.body;
     try {
         const result = await db.query(
-            'UPDATE employees SET name=$1, cedula=$2, phone=$3, pin=$4, position=$5, hourly_rate=$6, status=$7, start_date=$8, end_date=$9, apply_ccss=$10, salary_history=$11 WHERE id=$12 RETURNING *',
-            [name, cedula, phone, pin, position, hourlyRate, status, startDate, endDate, applyCCSS, JSON.stringify(salaryHistory || []), id]
+            'UPDATE employees SET name=$1, cedula=$2, phone=$3, pin=$4, position=$5, hourly_rate=$6, status=$7, start_date=$8, end_date=$9, apply_ccss=$10, overtime_threshold=$11, overtime_multiplier=$12, salary_history=$13 WHERE id=$14 RETURNING *',
+            [name, cedula, phone, pin, position, hourlyRate, status, startDate, endDate, applyCCSS, overtimeThreshold, overtimeMultiplier, JSON.stringify(salaryHistory || []), id]
         );
         res.json(result.rows[0]);
     } catch (err) {
@@ -209,7 +209,7 @@ app.get('/api/logs', async (req, res) => {
 });
 
 app.post('/api/logs', async (req, res) => {
-    const { employeeId, date, hours, timeIn, timeOut, isImported } = req.body;
+    const { employeeId, date, hours, timeIn, timeOut, isImported, isDoubleDay } = req.body;
 
     if (!employeeId || isNaN(employeeId)) {
         return res.status(400).json({ error: 'ID de empleado inválido o faltante' });
@@ -220,8 +220,8 @@ app.post('/api/logs', async (req, res) => {
 
     try {
         const result = await db.query(
-            'INSERT INTO logs (employee_id, date, hours, time_in, time_out, is_imported) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-            [employeeId, date, hours, timeIn || null, timeOut || null, isImported || false]
+            'INSERT INTO logs (employee_id, date, hours, time_in, time_out, is_imported, is_double_day) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
+            [employeeId, date, hours, timeIn || null, timeOut || null, isImported || false, isDoubleDay || false]
         );
         res.json(result.rows[0]);
     } catch (err) {
@@ -241,11 +241,11 @@ app.delete('/api/logs/:id', async (req, res) => {
 
 app.put('/api/logs/:id', async (req, res) => {
     const { id } = req.params;
-    const { employeeId, date, hours, timeIn, timeOut, isImported, isPaid } = req.body;
+    const { employeeId, date, hours, timeIn, timeOut, isImported, isPaid, isDoubleDay } = req.body;
     try {
         const result = await db.query(
-            'UPDATE logs SET employee_id=$1, date=$2, hours=$3, time_in=$4, time_out=$5, is_imported=$6, is_paid=$7 WHERE id=$8 RETURNING *',
-            [employeeId, date, hours, timeIn, timeOut, isImported, isPaid, id]
+            'UPDATE logs SET employee_id=$1, date=$2, hours=$3, time_in=$4, time_out=$5, is_imported=$6, is_paid=$7, is_double_day=$8 WHERE id=$9 RETURNING *',
+            [employeeId, date, hours, timeIn, timeOut, isImported, isPaid, isDoubleDay, id]
         );
         res.json(result.rows[0]);
     } catch (err) {
@@ -343,10 +343,10 @@ app.post('/api/logs/batch', async (req, res) => {
         await db.query('BEGIN');
 
         for (const log of logs) {
-            const { date, hours, timeIn, timeOut } = log;
+            const { date, hours, timeIn, timeOut, isDoubleDay } = log;
             await db.query(
-                'INSERT INTO logs (employee_id, date, hours, time_in, time_out, is_imported) VALUES ($1, $2, $3, $4, $5, $6)',
-                [employeeId, date, hours, timeIn, timeOut, false]
+                'INSERT INTO logs (employee_id, date, hours, time_in, time_out, is_imported, is_double_day) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+                [employeeId, date, hours, timeIn, timeOut, false, isDoubleDay || false]
             );
 
             const h = parseFloat(hours);
@@ -392,6 +392,20 @@ app.post('/api/payments', async (req, res) => {
         const result = await db.query(
             'INSERT INTO payments (employee_id, amount, hours, deduction_ccss, net_amount, date, is_imported, logs_detail, start_date, end_date) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *',
             [employeeId, amount, hours || 0, deductionCCSS || 0, netAmount || amount, date, isImported || false, JSON.stringify(logsDetail || []), startDate || null, endDate || null]
+        );
+        res.json(result.rows[0]);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.put('/api/payments/:id', async (req, res) => {
+    const { id } = req.params;
+    const { employeeId, amount, hours, deductionCCSS, netAmount, date, isImported, logsDetail, startDate, endDate } = req.body;
+    try {
+        const result = await db.query(
+            'UPDATE payments SET employee_id=$1, amount=$2, hours=$3, deduction_ccss=$4, net_amount=$5, date=$6, is_imported=$7, logs_detail=$8, start_date=$9, end_date=$10 WHERE id=$11 RETURNING *',
+            [employeeId, amount, hours, deductionCCSS, netAmount, date, isImported, JSON.stringify(logsDetail || []), startDate, endDate, id]
         );
         res.json(result.rows[0]);
     } catch (err) {
