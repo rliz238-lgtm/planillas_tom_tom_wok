@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS employees (
     apply_ccss BOOLEAN DEFAULT FALSE,
     overtime_threshold DECIMAL(10, 2) DEFAULT 48,
     overtime_multiplier DECIMAL(10, 2) DEFAULT 1.5,
+    enable_overtime BOOLEAN DEFAULT TRUE,
     salary_history JSONB DEFAULT '[]'::jsonb,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -38,6 +39,7 @@ CREATE TABLE IF NOT EXISTS logs (
     is_imported BOOLEAN DEFAULT FALSE,
     is_paid BOOLEAN DEFAULT FALSE, -- Nueva columna para control de pagos
     is_double_day BOOLEAN DEFAULT FALSE,
+    deduction_hours DECIMAL(10, 2) DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -65,9 +67,11 @@ ALTER TABLE employees ADD COLUMN IF NOT EXISTS salary_history JSONB DEFAULT '[]'
 ALTER TABLE employees ADD COLUMN IF NOT EXISTS apply_ccss BOOLEAN DEFAULT FALSE;
 ALTER TABLE employees ADD COLUMN IF NOT EXISTS overtime_threshold DECIMAL(10, 2) DEFAULT 48;
 ALTER TABLE employees ADD COLUMN IF NOT EXISTS overtime_multiplier DECIMAL(10, 2) DEFAULT 1.5;
+ALTER TABLE employees ADD COLUMN IF NOT EXISTS enable_overtime BOOLEAN DEFAULT TRUE;
 ALTER TABLE logs ADD COLUMN IF NOT EXISTS is_paid BOOLEAN DEFAULT FALSE;
 ALTER TABLE logs ADD COLUMN IF NOT EXISTS is_imported BOOLEAN DEFAULT FALSE;
 ALTER TABLE logs ADD COLUMN IF NOT EXISTS is_double_day BOOLEAN DEFAULT FALSE;
+ALTER TABLE logs ADD COLUMN IF NOT EXISTS deduction_hours DECIMAL(10, 2) DEFAULT 0;
 ALTER TABLE logs ALTER COLUMN hours TYPE DECIMAL(10, 2); -- Asegurar precisión
 
 -- Migraciones para Tabla payments

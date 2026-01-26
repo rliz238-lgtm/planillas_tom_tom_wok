@@ -408,6 +408,7 @@ const App = {
             form.applyCCSS.checked = !!emp.apply_ccss;
             form.overtimeThreshold.value = emp.overtime_threshold || 48;
             form.overtimeMultiplier.value = emp.overtime_multiplier || 1.5;
+            form.enableOvertime.checked = emp.enable_overtime !== false;
 
             modal.showModal();
         };
@@ -465,6 +466,7 @@ const App = {
                 applyCCSS: form.applyCCSS.checked,
                 overtimeThreshold: parseFloat(formData.get('overtimeThreshold')) || 48,
                 overtimeMultiplier: parseFloat(formData.get('overtimeMultiplier')) || 1.5,
+                enableOvertime: form.enableOvertime.checked,
                 salaryHistory: []
             };
 
@@ -1195,7 +1197,8 @@ const Views = {
                 <td><input type="time" class="calc-in" value="${nextIn}"></td>
                 <td><input type="time" class="calc-out" value="${nextOut}"></td>
                 <td class="calc-subtotal" style="font-weight: 600">0.00h</td>
-                ${Auth.getUser().role === 'admin' ? '<td style="text-align:center"><input type="checkbox" class="calc-double"></td>' : ''}
+                ${Auth.getUser().role === 'admin' ? '<td style="text-align:center"><input type="checkbox" class="calc-double" title="Marcar como Día Doble"></td>' : ''}
+                ${Auth.getUser().role === 'admin' ? '<td><input type="number" class="calc-deduction" value="0" step="0.5" style="width:60px" title="Horas de almuerzo o permisos"></td>' : ''}
                 <td><button class="btn" style="padding: 6px; color: var(--danger)" onclick="this.closest('tr').remove(); window.updateCalcTotal();">✕</button></td>
             `;
             tbody.appendChild(tr);
@@ -1219,12 +1222,16 @@ const Views = {
                 const tIn = tr.querySelector('.calc-in').value;
                 const tOut = tr.querySelector('.calc-out').value;
                 const isDouble = tr.querySelector('.calc-double') ? tr.querySelector('.calc-double').checked : false;
+                const deduction = tr.querySelector('.calc-deduction') ? parseFloat(tr.querySelector('.calc-deduction').value || 0) : 0;
 
                 if (tIn && tOut) {
                     const start = new Date(`2000-01-01T${tIn}`);
                     const end = new Date(`2000-01-01T${tOut}`);
                     let diff = (end - start) / 1000 / 60 / 60;
                     if (diff < 0) diff += 24;
+
+                    // Restar rebajos
+                    diff = Math.max(0, diff - deduction);
 
                     const displayHours = isDouble ? diff * 2 : diff;
                     tr.querySelector('.calc-subtotal').textContent = displayHours.toFixed(2) + 'h';
@@ -1235,16 +1242,23 @@ const Views = {
             let finalPay = 0;
             const otThreshold = emp ? parseFloat(emp.overtime_threshold || 48) : 48;
             const otMultiplier = emp ? parseFloat(emp.overtime_multiplier || 1.5) : 1.5;
+            const otEnabled = emp ? emp.enable_overtime !== false : true;
             const otInfo = document.getElementById('calc-overtime-info');
 
-            if (totalH > otThreshold && Auth.getUser().role === 'admin') {
+            if (totalH > otThreshold && Auth.getUser().role === 'admin' && otEnabled) {
                 const baseH = otThreshold;
                 const extraH = totalH - otThreshold;
                 finalPay = (baseH * rate) + (extraH * rate * otMultiplier);
                 if (otInfo) otInfo.textContent = `Base: ${baseH.toFixed(1)}h | Extra: ${extraH.toFixed(1)}h (x${otMultiplier})`;
             } else {
                 finalPay = totalH * rate;
-                if (otInfo) otInfo.textContent = "";
+                if (otInfo) {
+                    if (!otEnabled && totalH > otThreshold) {
+                        otInfo.textContent = `⚠️ Horas extra deshabilitadas para este empleado.`;
+                    } else {
+                        otInfo.textContent = "";
+                    }
+                }
             }
 
             document.getElementById('calc-total-hours').textContent = totalH.toFixed(2) + 'h';
@@ -1278,6 +1292,7 @@ const Views = {
                 const tIn = tr.querySelector('.calc-in').value;
                 const tOut = tr.querySelector('.calc-out').value;
                 const isDouble = tr.querySelector('.calc-double') ? tr.querySelector('.calc-double').checked : false;
+                const deduction = tr.querySelector('.calc-deduction') ? parseFloat(tr.querySelector('.calc-deduction').value || 0) : 0;
 
                 if (!date || !tIn || !tOut) continue;
 
@@ -1286,6 +1301,9 @@ const Views = {
                 let diff = (end - start) / 1000 / 60 / 60;
                 if (diff < 0) diff += 24;
 
+                // Restar rebajos
+                diff = Math.max(0, diff - deduction);
+
                 const finalHours = isDouble ? diff * 2 : diff;
 
                 batchLogs.push({
@@ -1293,7 +1311,8 @@ const Views = {
                     timeIn: tIn,
                     timeOut: tOut,
                     hours: finalHours.toFixed(2),
-                    isDoubleDay: isDouble
+                    isDoubleDay: isDouble,
+                    deductionHours: deduction
                 });
             }
 
