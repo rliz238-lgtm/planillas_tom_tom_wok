@@ -279,34 +279,47 @@ async function sendWhatsAppMessage(number, text) {
         text: text
     });
 
-    const options = {
-        hostname: new URL(apiUrl).hostname,
-        path: `/message/sendText/${instance}`,
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'apikey': apiKey
+    return new Promise((resolve, reject) => {
+        try {
+            const url = new URL(apiUrl);
+            // IMPORTANTE: encodeURIComponent maneja espacios en el nombre de la instancia
+            const options = {
+                hostname: url.hostname,
+                port: url.port || (url.protocol === 'https:' ? 443 : 80),
+                path: `/message/sendText/${encodeURIComponent(instance)}`,
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'apikey': apiKey,
+                    'Content-Length': Buffer.byteLength(data)
+                }
+            };
+
+            const req = https.request(options, (res) => {
+                let responseBody = '';
+                res.on('data', (chunk) => { responseBody += chunk; });
+                res.on('end', () => {
+                    if (res.statusCode >= 200 && res.statusCode < 300) {
+                        console.log(`✅ WhatsApp enviado a ${cleanNumber}`);
+                        resolve({ success: true, body: responseBody });
+                    } else {
+                        console.error(`❌ Error Evolution API (${res.statusCode}):`, responseBody);
+                        reject(new Error(`Evolution API Error (${res.statusCode}): ${responseBody}`));
+                    }
+                });
+            });
+
+            req.on('error', (e) => {
+                console.error('❌ Error de red enviando WhatsApp:', e.message);
+                reject(e);
+            });
+
+            req.write(data);
+            req.end();
+        } catch (err) {
+            reject(err);
         }
-    };
-
-    const req = https.request(options, (res) => {
-        let responseBody = '';
-        res.on('data', (chunk) => { responseBody += chunk; });
-        res.on('end', () => {
-            if (res.statusCode >= 200 && res.statusCode < 300) {
-                console.log(`✅ WhatsApp enviado a ${cleanNumber}`);
-            } else {
-                console.error(`❌ Error Evolution API (${res.statusCode}):`, responseBody);
-            }
-        });
     });
-
-    req.on('error', (e) => {
-        console.error('❌ Error enviando WhatsApp:', e.message);
-    });
-
-    req.write(data);
-    req.end();
 }
 
 app.post('/api/logs/batch', async (req, res) => {
