@@ -1199,15 +1199,8 @@ const Views = {
             const empId = empSelect.value;
             if (!empId) return;
 
-            const employees = await Storage.get('employees');
-            const emp = employees.find(e => e.id == empId);
-            if (!emp) return;
-
             const rows = tbody.querySelectorAll('tr');
             let successCount = 0;
-            let summaryDetails = "";
-            let totalH = 0;
-            let totalAmt = 0;
 
             Storage.showLoader(true, 'Guardando registros...');
 
@@ -1216,14 +1209,12 @@ const Views = {
                 const tIn = tr.querySelector('.calc-in').value;
                 const tOut = tr.querySelector('.calc-out').value;
 
-                if (!date || !tIn || !tOut) continue;
-
                 const start = new Date(`2000-01-01T${tIn}`);
                 const end = new Date(`2000-01-01T${tOut}`);
                 let diff = (end - start) / 1000 / 60 / 60;
                 if (diff < 0) diff += 24;
 
-                const res = await Storage.add('logs', {
+                await Storage.add('logs', {
                     employeeId: parseInt(empId),
                     date: date,
                     timeIn: tIn,
@@ -1231,35 +1222,16 @@ const Views = {
                     hours: diff.toFixed(2),
                     isImported: false
                 });
-
-                if (res.success) {
-                    successCount++;
-                    totalH += diff;
-                    const gross = diff * parseFloat(emp.hourly_rate);
-                    const deduction = emp.apply_ccss ? (gross * 0.1067) : 0;
-                    const net = gross - deduction;
-                    totalAmt += net;
-
-                    const day = new Date(date + 'T00:00:00').toLocaleString('es-ES', { weekday: 'short' }).toUpperCase();
-                    summaryDetails += `• ${day} ${date}: ${tIn} - ${tOut} (${diff.toFixed(1)}h) → ₡${Math.round(net).toLocaleString()}%0A`;
-                }
+                successCount++;
             }
 
             Storage.showLoader(false);
+            alert(`¡Éxito! Se guardaron ${successCount} registros correspondientes a su tiempo laborado.`);
 
-            if (successCount > 0) {
-                alert(`¡Éxito! Se guardaron ${successCount} registros correspondientes a su tiempo laborado.`);
-
-                // WhatsApp Summary
-                const text = `*REGISTRO DE HORAS TTW*%0A%0A*Empleado:* ${emp.name}%0A*Total Horas:* ${totalH.toFixed(1)}h%0A*Monto Est.:* ₡${Math.round(totalAmt).toLocaleString()}%0A%0A*DETALLE:*%0A${summaryDetails}`;
-                const phone = emp.phone || '';
-                window.open(`https://wa.me/${phone.replace(/\D/g, '')}?text=${text}`, '_blank');
-
-                if (Auth.getUser().role === 'admin') {
-                    App.switchView('payroll');
-                } else {
-                    window.clearCalculator();
-                }
+            if (Auth.getUser().role === 'admin') {
+                App.switchView('payroll');
+            } else {
+                window.clearCalculator();
             }
         };
 
