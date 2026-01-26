@@ -50,19 +50,27 @@ const PayrollHelpers = {
                 <div><strong>Pendiente:</strong> ₡${Math.round(data.net).toLocaleString()}</div>
                 <div><strong>Horas:</strong> ${data.hours.toFixed(1)}h</div>
             </div>`;
-        body.innerHTML = data.logs.sort((a, b) => new Date(b.date) - new Date(a.date)).map(l => `
+        body.innerHTML = data.logs.sort((a, b) => new Date(b.date) - new Date(a.date)).map(l => {
+            const isDouble = !!l.is_double_day;
+            const logNet = l.net || (parseFloat(l.hours) * (parseFloat(employees.find(e => e.id == l.employee_id)?.hourly_rate || 0)));
+            return `
             <tr>
-                <td>${l.date.split('T')[0]}</td>
+                <td style="white-space:nowrap">${l.date.split('T')[0]}</td>
                 <td>${l.time_in || '--'}</td><td>${l.time_out || '--'}</td>
-                <td style="font-weight:700">${parseFloat(l.hours).toFixed(1)}h</td>
-                <td style="display:flex; gap:5px; align-items:center;">
-                    <span style="color:var(--success); font-weight:600;">₡${Math.round(l.net).toLocaleString()}</span>
-                    <button class="btn btn-primary" style="padding:4px 8px; font-size:0.75rem;" onclick="PayrollHelpers.payLine(${l.id},${l.employee_id},'${l.date.split('T')[0]}',${l.net},${l.hours},${l.deduction})">Pagar</button>
-                    <button class="btn btn-secondary" style="padding:4px 8px; font-size:0.75rem;" onclick="PayrollHelpers.editLogLine(${l.id})">✏️</button>
-                    <button class="btn btn-whatsapp" style="padding:4px 8px; font-size:0.75rem;" onclick="PayrollHelpers.shareWhatsAppLine(${l.employee_id}, '${l.date.split('T')[0]}', ${l.hours}, ${l.net}, '${l.time_in}', '${l.time_out}')" title="Enviar este día por WhatsApp">✉️</button>
-                    <button class="btn btn-danger" style="padding:4px 8px; font-size:0.75rem;" onclick="window.deleteLog(${l.id})">🗑️</button>
+                <td>
+                    <div style="font-weight:700">${parseFloat(l.hours).toFixed(1)}h</div>
+                    ${isDouble ? '<div style="font-size:0.7rem; color:var(--warning)">Doble</div>' : ''}
+                    ${l.deduction_hours > 0 ? `<div style="font-size:0.7rem; color:var(--text-muted)">-${l.deduction_hours}h rebajo</div>` : ''}
                 </td>
-            </tr>`).join('');
+                <td style="display:flex; gap:5px; align-items:center;">
+                    <span style="color:var(--success); font-weight:600;">₡${Math.round(logNet).toLocaleString()}</span>
+                    <button class="btn btn-primary" style="padding:4px 8px; font-size:0.75rem;" onclick="PayrollHelpers.payLine(${l.id},${l.employee_id},'${l.date.split('T')[0]}',${logNet},${l.hours},${l.deduction || 0})" title="Pagar este día únicamente">💰</button>
+                    <button class="btn btn-secondary" style="padding:4px 8px; font-size:0.75rem;" onclick="window.editLogDetailed(${l.id})" title="Editar horas, día doble o rebajos">✏️</button>
+                    <button class="btn btn-whatsapp" style="padding:4px 8px; font-size:0.75rem;" onclick="PayrollHelpers.shareWhatsAppLine(${l.employee_id}, '${l.date.split('T')[0]}', ${l.hours}, ${logNet}, '${l.time_in}', '${l.time_out}')" title="Enviar comprobante de este día por WhatsApp">✉️</button>
+                    <button class="btn btn-danger" style="padding:4px 8px; font-size:0.75rem;" onclick="window.deleteLog(${l.id})" title="Eliminar este día">🗑️</button>
+                </td>
+            </tr>`;
+        }).join('');
         modal.showModal();
     },
     editLogLine: async (id) => {
@@ -135,13 +143,17 @@ const PayrollHelpers = {
             const logNet = l.net || (parseFloat(l.hours) * (emp ? parseFloat(emp.hourly_rate) : 0));
             return `
             <tr>
-                <td>${l.date.split('T')[0]}</td>
+                <td style="white-space:nowrap">${l.date.split('T')[0]}</td>
                 <td>${l.time_in || '--'}</td>
                 <td>${l.time_out || '--'}</td>
-                <td>${parseFloat(l.hours).toFixed(1)}h</td>
+                <td>
+                    <div style="font-weight:600">${parseFloat(l.hours).toFixed(1)}h</div>
+                    ${l.is_double_day ? '<div style="font-size:0.7rem; color:var(--warning)">Doble</div>' : ''}
+                    ${l.deduction_hours > 0 ? `<div style="font-size:0.7rem; color:var(--text-muted)">-${l.deduction_hours}h rebajo</div>` : ''}
+                </td>
                 <td style="display:flex; gap:5px; align-items:center;">
                     <span style="font-weight:600">₡${Math.round(logNet).toLocaleString()}</span>
-                    <button class="btn btn-whatsapp" style="padding:4px 8px; font-size:0.75rem;" onclick="PayrollHelpers.shareWhatsAppLine(${emp ? emp.id : 0}, '${l.date.split('T')[0]}', ${l.hours}, ${logNet}, '${l.time_in}', '${l.time_out}')">✉️</button>
+                    <button class="btn btn-whatsapp" style="padding:4px 8px; font-size:0.75rem;" onclick="PayrollHelpers.shareWhatsAppLine(${emp ? emp.id : 0}, '${l.date.split('T')[0]}', ${l.hours}, ${logNet}, '${l.time_in}', '${l.time_out}')" title="Re-enviar comprobante por WhatsApp">✉️</button>
                 </td>
             </tr>`;
         }).join('');
@@ -1367,6 +1379,9 @@ const Views = {
                     name: emp.name,
                     phone: emp.phone || '',
                     hours: 0,
+                    regularHours: 0,
+                    extraHours: 0,
+                    doubleHours: 0,
                     gross: 0,
                     deduction: 0,
                     net: 0,
@@ -1377,6 +1392,14 @@ const Views = {
             }
             const empData = pendingByEmployee[emp.id];
             const hours = parseFloat(log.hours);
+            const isDouble = !!log.is_double_day;
+
+            if (isDouble) {
+                empData.doubleHours += hours;
+            } else {
+                empData.regularHours += hours;
+            }
+
             const gross = hours * parseFloat(emp.hourly_rate);
             const deduction = emp.apply_ccss ? (gross * 0.1067) : 0;
             const net = gross - deduction;
@@ -1385,7 +1408,7 @@ const Views = {
             empData.gross += gross;
             empData.deduction += deduction;
             empData.net += net;
-            empData.logs.push({ ...log, gross, deduction, net });
+            empData.logs.push({ ...log, isDouble, hours, gross, deduction, net });
 
             const logDate = log.date.split('T')[0];
             const empStart = empData.startDate.split('T')[0];
@@ -1534,6 +1557,64 @@ const Views = {
                 App.renderView('payroll');
             }
         };
+
+        const editLogModal = document.getElementById('edit-log-modal');
+        const editLogForm = document.getElementById('edit-log-form');
+
+        window.editLogDetailed = async (id) => {
+            const logs = await Storage.get('logs');
+            const l = logs.find(x => x.id == id);
+            if (!l) return;
+
+            editLogForm.logId.value = l.id;
+            editLogForm.date.value = l.date.split('T')[0];
+            editLogForm.timeIn.value = l.time_in || '08:00';
+            editLogForm.timeOut.value = l.time_out || '17:00';
+            editLogForm.isDoubleDay.checked = !!l.is_double_day;
+            editLogForm.deductionHours.value = l.deduction_hours || 0;
+
+            editLogModal.showModal();
+        };
+
+        if (editLogForm) {
+            editLogForm.onsubmit = async (e) => {
+                e.preventDefault();
+                const formData = new FormData(editLogForm);
+                const logId = formData.get('logId');
+
+                const tIn = formData.get('timeIn');
+                const tOut = formData.get('timeOut');
+                const isDouble = editLogForm.isDoubleDay.checked;
+                const deduction = parseFloat(formData.get('deductionHours') || 0);
+
+                const start = new Date(`2000-01-01T${tIn}`);
+                const end = new Date(`2000-01-01T${tOut}`);
+                let diff = (end - start) / 1000 / 60 / 60;
+                if (diff < 0) diff += 24;
+                diff = Math.max(0, diff - deduction);
+                if (isDouble) diff *= 2;
+
+                const updates = {
+                    date: formData.get('date'),
+                    timeIn: tIn,
+                    timeOut: tOut,
+                    isDoubleDay: isDouble,
+                    deductionHours: deduction,
+                    hours: diff.toFixed(2)
+                };
+
+                Storage.showLoader(true, 'Actualizando registro...');
+                await Storage.update('logs', logId, updates);
+                Storage.showLoader(false);
+                editLogModal.close();
+
+                // Si el modal de detalle estaba abierto, lo cerramos para refrescar vista de atrás
+                const detailModal = document.getElementById('payroll-detail-modal');
+                if (detailModal && detailModal.open) detailModal.close();
+
+                App.renderView('payroll');
+            };
+        }
 
         window.deleteLog = async (id) => {
             if (confirm("¿Eliminar este registro de horas?")) {
