@@ -612,6 +612,7 @@ const Views = {
         const employees = await Storage.get('employees');
         const activeEmployees = employees.filter(e => e.status === 'Active');
         const rawLogs = await Storage.get('logs');
+        const payments = await Storage.get('payments');
 
         // Deduplicate logs
         const uniqueLogKeys = new Set();
@@ -624,16 +625,44 @@ const Views = {
 
         const now = new Date();
         const todayStr = Storage.getLocalDate();
-        const currentMonth = todayStr.substring(0, 7);
-        const monthLogs = logs.filter(l => l.date && l.date.substring(0, 7) === currentMonth);
-        const monthHours = monthLogs.reduce((s, l) => s + parseFloat(l.hours || 0), 0);
+        const currentYearMonth = todayStr.substring(0, 7);
 
-        const monthAmount = monthLogs.reduce((s, l) => {
-            const emp = employees.find(e => e.id == l.employee_id);
-            const gross = parseFloat(l.hours || 0) * (emp ? parseFloat(emp.hourly_rate) : 0);
-            const deduction = (emp && emp.apply_ccss) ? (gross * 0.1067) : 0;
-            return s + (gross - deduction);
-        }, 0);
+        // --- Helper for Aggregation ---
+        const getAggregateStats = (startDate, endDate) => {
+            // Unpaid Logs
+            const periodLogs = logs.filter(l => l.date >= startDate && l.date <= endDate);
+            let hours = periodLogs.reduce((s, l) => s + parseFloat(l.hours || 0), 0);
+            let amount = periodLogs.reduce((s, l) => {
+                const emp = employees.find(e => e.id == l.employee_id);
+                const gross = parseFloat(l.hours || 0) * (emp ? parseFloat(emp.hourly_rate) : 0);
+                const deduction = (emp && emp.apply_ccss) ? (gross * 0.1067) : 0;
+                return s + (gross - deduction);
+            }, 0);
+
+            // Paid Data from Payments Detail
+            payments.forEach(p => {
+                if (!p.logs_detail || !Array.isArray(p.logs_detail)) return;
+                p.logs_detail.forEach(l => {
+                    const logDate = l.date ? l.date.split('T')[0] : null;
+                    if (logDate && logDate >= startDate && logDate <= endDate) {
+                        const h = parseFloat(l.hours || 0);
+                        hours += h;
+
+                        // Recalculate net if not present in log detail
+                        if (l.net) {
+                            amount += parseFloat(l.net);
+                        } else {
+                            const emp = employees.find(e => e.id == p.employee_id);
+                            const gross = h * (emp ? parseFloat(emp.hourly_rate) : 0);
+                            const deduction = (emp && emp.apply_ccss) ? (gross * 0.1067) : 0;
+                            amount += (gross - deduction);
+                        }
+                    }
+                });
+            });
+
+            return { hours, amount };
+        };
 
         const getWeekRange = (date) => {
             const d = new Date(date);
@@ -644,31 +673,27 @@ const Views = {
             monday.setDate(d.getDate() + diffToMonday);
             const sunday = new Date(monday);
             sunday.setDate(monday.getDate() + 6);
-            const format = (dt) => dt.toISOString().split('T')[0];
-            return { start: format(monday), end: format(sunday) };
+            // Use local date formatting to avoid TZ shifts
+            return {
+                start: Storage.getLocalDate(monday),
+                end: Storage.getLocalDate(sunday)
+            };
         };
 
-        const weekRange = getWeekRange(now);
-        const weekLogs = logs.filter(l => l.date >= weekRange.start && l.date <= weekRange.end);
-        const weekHours = weekLogs.reduce((s, l) => s + parseFloat(l.hours || 0), 0);
-        const weekAmount = weekLogs.reduce((s, l) => {
-            const emp = employees.find(e => e.id == l.employee_id);
-            const gross = parseFloat(l.hours || 0) * (emp ? parseFloat(emp.hourly_rate) : 0);
-            const deduction = (emp && emp.apply_ccss) ? (gross * 0.1067) : 0;
-            return s + (gross - deduction);
-        }, 0);
+        // Current Month Stats
+        const monthStart = `${currentYearMonth}-01`;
+        const monthEnd = `${currentYearMonth}-31`; // SQL/JS handles overflow or comparison
+        const monthStats = getAggregateStats(monthStart, monthEnd);
 
+        // Current Week Stats
+        const weekRange = getWeekRange(now);
+        const weekStats = getAggregateStats(weekRange.start, weekRange.end);
+
+        // Last Week Stats
         const lastWeekDate = new Date(now);
         lastWeekDate.setDate(now.getDate() - 7);
         const lastWeekRange = getWeekRange(lastWeekDate);
-        const lastWeekLogs = logs.filter(l => l.date >= lastWeekRange.start && l.date <= lastWeekRange.end);
-        const lastWeekHours = lastWeekLogs.reduce((s, l) => s + parseFloat(l.hours || 0), 0);
-        const lastWeekAmount = lastWeekLogs.reduce((s, l) => {
-            const emp = employees.find(e => e.id == l.employee_id);
-            const gross = parseFloat(l.hours || 0) * (emp ? parseFloat(emp.hourly_rate) : 0);
-            const deduction = (emp && emp.apply_ccss) ? (gross * 0.1067) : 0;
-            return s + (gross - deduction);
-        }, 0);
+        const lastWeekStats = getAggregateStats(lastWeekRange.start, lastWeekRange.end);
 
         return `
             <div class="stats-grid" style="grid-template-columns: repeat(4, 1fr) !important;">
@@ -679,20 +704,20 @@ const Views = {
                 </div>
                 <div class="stat-card">
                     <h3>Semana Pasada</h3>
-                    <div class="value">${lastWeekHours.toFixed(1)}h</div>
-                    <div style="font-size: 1.2rem; margin-top: 0.5rem; color: var(--success)">₡${Math.round(lastWeekAmount).toLocaleString()}</div>
+                    <div class="value">${lastWeekStats.hours.toFixed(1)}h</div>
+                    <div style="font-size: 1.2rem; margin-top: 0.5rem; color: var(--success)">₡${Math.round(lastWeekStats.amount).toLocaleString()}</div>
                     <div class="trend" style="font-size: 0.75rem">${lastWeekRange.start} al ${lastWeekRange.end}</div>
                 </div>
                 <div class="stat-card">
                     <h3>Semana Actual</h3>
-                    <div class="value">${weekHours.toFixed(1)}h</div>
-                    <div style="font-size: 1.2rem; margin-top: 0.5rem; color: var(--success)">₡${Math.round(weekAmount).toLocaleString()}</div>
+                    <div class="value">${weekStats.hours.toFixed(1)}h</div>
+                    <div style="font-size: 1.2rem; margin-top: 0.5rem; color: var(--success)">₡${Math.round(weekStats.amount).toLocaleString()}</div>
                     <div class="trend" style="font-size: 0.75rem">${weekRange.start} al ${weekRange.end}</div>
                 </div>
                 <div class="stat-card">
                     <h3>Acumulado del Mes</h3>
-                    <div class="value">${monthHours.toFixed(1)}h</div>
-                    <div style="font-size: 1.2rem; margin-top: 0.5rem; color: var(--success)">₡${Math.round(monthAmount).toLocaleString()}</div>
+                    <div class="value">${monthStats.hours.toFixed(1)}h</div>
+                    <div style="font-size: 1.2rem; margin-top: 0.5rem; color: var(--success)">₡${Math.round(monthStats.amount).toLocaleString()}</div>
                     <div class="trend">${now.toLocaleString('es-ES', { month: 'long' }).toUpperCase()}</div>
                 </div>
             </div>
