@@ -1268,7 +1268,7 @@ const Views = {
                 Storage.showLoader(false);
 
                 if (result.success) {
-                    alert(`¡Éxito! Se guardaron ${result.count} registros. Recibirá su resumen por WhatsApp.`);
+                    PayrollHelpers.showWhatsAppConfirm(result.messageSent);
 
                     if (Auth.getUser().role === 'admin') {
                         App.switchView('payroll');
@@ -1509,6 +1509,7 @@ const Views = {
         window.showPaymentHistoryDetail = PayrollHelpers.showPaymentHistoryDetail;
         window.payEmployeeGroup = PayrollHelpers.payEmployeeGroup;
         window.shareWhatsAppPending = PayrollHelpers.shareWhatsAppPending;
+        window.shareWhatsApp = Views.shareWhatsApp;
         window.payLine = PayrollHelpers.payLine;
     },
 
