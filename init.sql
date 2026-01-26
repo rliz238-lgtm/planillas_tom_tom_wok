@@ -81,5 +81,5 @@ ON CONFLICT (username) DO NOTHING;
 -- Insertar usuario rli001
 INSERT INTO users (username, password, name) 
 VALUES ('rli001', 'rli001', 'Usuario RLI')
-ON CONFLICT (username) DO UPDATE SET password = EXCLUDED.password;
+ON CONFLICT (username) DO NOTHING;
 
