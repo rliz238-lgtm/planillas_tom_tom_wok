@@ -248,6 +248,24 @@
         </div>
     </dialog>
 
+    <dialog id="whatsapp-confirm-modal">
+        <div class="modal-content" style="max-width: 450px;">
+            <div style="text-align: center; margin-bottom: 1.5rem;">
+                <div style="font-size: 3rem; margin-bottom: 0.5rem;">✅</div>
+                <h3 style="color: var(--success);">WhatsApp Enviado</h3>
+                <p style="color: var(--text-muted); font-size: 0.9rem;">El resumen se ha enviado correctamente.</p>
+            </div>
+            <div id="whatsapp-confirm-content"
+                style="background: #075e54; color: white; padding: 1.5rem; border-radius: 12px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; white-space: pre-wrap; margin-bottom: 1.5rem; font-size: 0.95rem; line-height: 1.4; border-left: 4px solid #25d366;">
+                <!-- Texto del mensaje aquí -->
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <button class="btn btn-primary" style="flex: 1;"
+                    onclick="document.getElementById('whatsapp-confirm-modal').close()">Aceptar</button>
+            </div>
+        </div>
+    </dialog>
+
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="main.js?v=15.1"></script>

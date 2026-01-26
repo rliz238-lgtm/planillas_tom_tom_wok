@@ -8,6 +8,37 @@ const PayrollHelpers = {
     // Icono minimalista de ojo
     EYE_ICON: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:-2px"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" /></svg>`,
 
+    showWhatsAppConfirm: (text) => {
+        const modal = document.getElementById('whatsapp-confirm-modal');
+        const content = document.getElementById('whatsapp-confirm-content');
+        if (modal && content) {
+            content.textContent = text;
+            modal.showModal();
+        }
+    },
+
+    sendServerWhatsApp: async (phone, text) => {
+        if (!phone) return alert("El empleado no tiene teléfono registrado.");
+        Storage.showLoader(true, 'Enviando WhatsApp...');
+        try {
+            const res = await fetch('/api/whatsapp/send', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ phone, message: text })
+            });
+            const result = await res.json();
+            if (result.success) {
+                PayrollHelpers.showWhatsAppConfirm(result.messageSent);
+            } else {
+                alert("Error enviando WhatsApp: " + (result.error || "Desconocido"));
+            }
+        } catch (e) {
+            alert("Error de conexión al enviar WhatsApp");
+        } finally {
+            Storage.showLoader(false);
+        }
+    },
+
     showPayrollDetail: (empId) => {
         const data = window._pendingPayrollData[empId];
         if (!data) return alert("Error: Datos no encontrados. Recargue la página.");
@@ -40,8 +71,8 @@ const PayrollHelpers = {
         const phone = d ? d.phone : '';
         const name = d ? d.name : 'Empleado';
         const day = new Date(date + 'T00:00:00').toLocaleString('es-ES', { weekday: 'short' }).toUpperCase();
-        const text = `*REGISTRO TTW*%0A%0A*Emp:* ${name}%0A*Día:* ${day} ${date}%0A*Horario:* ${tIn || '--'} - ${tOut || '--'}%0A*Horas:* ${parseFloat(hours).toFixed(1)}h%0A*Monto:* ₡${Math.round(amount).toLocaleString()}`;
-        window.open(`https://wa.me/${phone.replace(/\D/g, '')}?text=${text}`, '_blank');
+        const text = `*REGISTRO TTW*\n\n*Emp:* ${name}\n*Día:* ${day} ${date}\n*Horario:* ${tIn || '--'} - ${tOut || '--'}\n*Horas:* ${parseFloat(hours).toFixed(1)}h\n*Monto:* ₡${Math.round(amount).toLocaleString()}`;
+        PayrollHelpers.sendServerWhatsApp(phone, text);
     },
     payEmployeeGroup: async (empId) => {
         const d = window._pendingPayrollData[empId];
@@ -65,14 +96,14 @@ const PayrollHelpers = {
         const d = window._pendingPayrollData[empId]; if (!d) return;
         let details = "";
         if (d.logs && d.logs.length > 0) {
-            details = "%0A%0A*DETALLE DE DÍAS:*%0A";
+            details = "\n\n*DETALLE DE DÍAS:*\n";
             d.logs.sort((a, b) => new Date(a.date) - new Date(b.date)).forEach(l => {
                 const day = new Date(l.date + 'T00:00:00').toLocaleString('es-ES', { weekday: 'short' }).toUpperCase();
-                details += `• ${day} ${l.date.split('T')[0]}: ${l.time_in || '--'} - ${l.time_out || '--'} (${parseFloat(l.hours).toFixed(1)}h) → ₡${Math.round(l.net).toLocaleString()}%0A`;
+                details += `• ${day} ${l.date.split('T')[0]}: ${l.time_in || '--'} - ${l.time_out || '--'} (${parseFloat(l.hours).toFixed(1)}h) → ₡${Math.round(l.net).toLocaleString()}\n`;
             });
         }
-        const text = `*RESUMEN PAGO - TTW*%0A%0A*Empleado:* ${d.name}%0A*Total Neto:* ₡${Math.round(d.net).toLocaleString()}%0A*Total Horas:* ${d.hours.toFixed(1)}h${details}`;
-        window.open(`https://wa.me/${d.phone.replace(/\D/g, '')}?text=${text}`, '_blank');
+        const text = `*RESUMEN PAGO - TTW*\n\n*Empleado:* ${d.name}\n*Total Neto:* ₡${Math.round(d.net).toLocaleString()}\n*Total Horas:* ${d.hours.toFixed(1)}h${details}`;
+        PayrollHelpers.sendServerWhatsApp(d.phone, text);
     },
     showPaymentHistoryDetail: async (paymentId) => {
         const payments = await Storage.get('payments'), employees = await Storage.get('employees');
@@ -1488,15 +1519,15 @@ const Views = {
 
         let details = "";
         if (p.logs_detail && p.logs_detail.length > 0) {
-            details = "%0A%0A*DETALLE:*%0A";
+            details = "\n\n*DETALLE:*\n";
             p.logs_detail.forEach(l => {
                 const day = new Date(l.date + 'T00:00:00').toLocaleString('es-ES', { weekday: 'short' }).toUpperCase();
-                details += `• ${day} ${l.date.split('T')[0]}: ${l.time_in || '--'} - ${l.time_out || '--'} (${parseFloat(l.hours).toFixed(1)}h) → ₡${Math.round(l.net || (parseFloat(l.hours) * parseFloat(e.hourly_rate))).toLocaleString()}%0A`;
+                details += `• ${day} ${l.date.split('T')[0]}: ${l.time_in || '--'} - ${l.time_out || '--'} (${parseFloat(l.hours).toFixed(1)}h) → ₡${Math.round(l.net || (parseFloat(l.hours) * parseFloat(e.hourly_rate))).toLocaleString()}\n`;
             });
         }
 
-        const text = `*COMPROBANTE TTW*%0A%0A*Empleado:* ${e.name}%0A*Total Pagado:* ₡${Math.round(p.amount).toLocaleString()}%0A*Total Horas:* ${p.hours}h${details}`;
-        window.open(`https://wa.me/${e.phone.replace(/\D/g, '')}?text=${text}`, '_blank');
+        const text = `*COMPROBANTE TTW*\n\n*Empleado:* ${e.name}\n*Total Pagado:* ₡${Math.round(p.amount).toLocaleString()}\n*Total Horas:* ${p.hours}h${details}`;
+        PayrollHelpers.sendServerWhatsApp(e.phone, text);
     },
 
     exportPayments: async () => {

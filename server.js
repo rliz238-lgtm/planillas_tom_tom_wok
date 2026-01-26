@@ -349,10 +349,10 @@ app.post('/api/logs/batch', async (req, res) => {
 
         await db.query('COMMIT');
 
-        // 3. Enviar WhatsApp si hay número
         if (emp.phone) {
             const messageText = `*REGISTRO DE HORAS TTW*\n\n*Empleado:* ${emp.name}\n*Total Horas:* ${totalH.toFixed(1)}h\n*Monto Est.:* ₡${Math.round(totalAmt).toLocaleString()}\n\n*DETALLE:*\n${summaryDetails}`;
-            sendWhatsAppMessage(emp.phone, messageText);
+            await sendWhatsAppMessage(emp.phone, messageText);
+            return res.json({ success: true, count: logs.length, messageSent: messageText });
         }
 
         res.json({ success: true, count: logs.length });
@@ -390,6 +390,19 @@ app.delete('/api/payments/:id', async (req, res) => {
     try {
         await db.query('DELETE FROM payments WHERE id = $1', [req.params.id]);
         res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// --- Generic WhatsApp Send ---
+app.post('/api/whatsapp/send', async (req, res) => {
+    const { phone, message } = req.body;
+    if (!phone || !message) return res.status(400).json({ error: 'Phone and message are required' });
+
+    try {
+        await sendWhatsAppMessage(phone, message);
+        res.json({ success: true, messageSent: message });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
