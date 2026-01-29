@@ -1185,7 +1185,7 @@ const Views = {
         return `
             <div class="card-container">
                 <div style="margin-bottom: 2rem">
-                    <h3 style="color: var(--primary)">Calculadora de Horas (Horas Dobles y Almuerzo)</h3>
+                    <h3 style="color: var(--primary)">Calculadora de Horas</h3>
                     <p style="color: var(--text-muted); font-size: 0.9rem">
                         Utilice esta herramienta para registrar las horas laboradas de los empleados y calcular su pago bruto (incluye feriados y rebajos).
                     </p>
@@ -1218,6 +1218,8 @@ const Views = {
                                 <th>Entrada</th>
                                 <th>Salida</th>
                                 <th>Horas</th>
+                                ${isAdmin ? '<th>Horas Dobles</th>' : ''}
+                                ${isAdmin ? '<th>Horas Almuerzo</th>' : ''}
                                 <th style="width: 50px"></th>
                             </tr>
                         </thead>
@@ -1286,9 +1288,9 @@ const Views = {
                 <td><input type="time" class="calc-in" value="${nextIn}"></td>
                 <td><input type="time" class="calc-out" value="${nextOut}"></td>
                 <td class="calc-subtotal" style="font-weight: 600">0.00h</td>
-                ${Auth.getUser().role === 'admin' ? '<td style="text-align:center"><input type="checkbox" class="calc-double" title="Marcar como Día Doble"></td>' : ''}
-                ${Auth.getUser().role === 'admin' ? '<td><input type="number" class="calc-deduction" value="0" step="0.5" style="width:60px" title="Horas de almuerzo o permisos"></td>' : ''}
-                <td><button class="btn" style="padding: 6px; color: var(--danger)" onclick="this.closest('tr').remove(); window.updateCalcTotal();">✕</button></td>
+                ${Auth.getUser().role === 'admin' ? '<td style="text-align:center"><input type="checkbox" class="calc-double" title="Marcar como Día Doble" style="width: 20px; height: 20px;"></td>' : ''}
+                ${Auth.getUser().role === 'admin' ? '<td><input type="number" class="calc-deduction" value="0" step="0.5" style="width:100px" title="Horas de almuerzo o permisos"></td>' : ''}
+                <td style="text-align: center;"><button class="btn" style="padding: 6px; color: var(--danger)" onclick="this.closest('tr').remove(); window.updateCalcTotal();">✕</button></td>
             `;
             tbody.appendChild(tr);
 
