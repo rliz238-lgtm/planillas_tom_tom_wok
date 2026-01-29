@@ -170,7 +170,7 @@ const EmployeePortal = {
                         <div style="display: flex; justify-content: space-between; align-items: center;">
                             <div>
                                 <div style="font-size: 0.9rem; color: var(--text-muted);">Total a Guardar</div>
-                                <div id="total-hours" style="font-size: 2rem; font-weight: 700; color: var(--primary);">0.00h</div>
+                                <div id="total-hours" class="calc-total-value" style="color: var(--primary);">0.00h</div>
                             </div>
                             <button class="btn btn-primary" id="save-btn" style="padding: 1rem 2rem; font-size: 1.1rem;">
                                 💾 Guardar Horas

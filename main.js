@@ -1238,12 +1238,12 @@ const Views = {
                     <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 2rem; text-align: center;">
                         <div>
                             <div style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 0.5rem">Total de Horas</div>
-                            <div class="value" id="calc-total-hours" style="font-size: 2.5rem; color: var(--primary)">0.00h</div>
+                            <div class="value calc-total-value" id="calc-total-hours" style="color: var(--primary)">0.00h</div>
                             <div id="calc-overtime-info" style="font-size: 0.8rem; color: var(--text-muted); margin-top: 5px;"></div>
                         </div>
                         <div>
                             <div style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 0.5rem">Monto Estimado</div>
-                            <div class="value" id="calc-total-pay" style="font-size: 2.5rem; color: var(--success)">₡0</div>
+                            <div class="value calc-total-value" id="calc-total-pay" style="color: var(--success)">₡0</div>
                         </div>
                     </div>
                 </div>
