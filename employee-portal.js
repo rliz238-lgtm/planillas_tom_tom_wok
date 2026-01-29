@@ -151,13 +151,13 @@ const EmployeePortal = {
                         <table id="hours-table">
                             <thead>
                                 <tr>
-                                    <th>Fecha</th>
-                                    <th>Entrada</th>
-                                    <th>Salida</th>
-                                    <th>Doble</th>
-                                    <th>Almuerzo (h)</th>
-                                    <th>Horas</th>
-                                    <th>Acción</th>
+                                    <th class="col-date">Fecha</th>
+                                    <th class="col-time">Entrada</th>
+                                    <th class="col-time">Salida</th>
+                                    <th class="col-double">Doble</th>
+                                    <th class="col-num">Almuerzo</th>
+                                    <th class="col-hours">Horas</th>
+                                    <th class="col-action"></th>
                                 </tr>
                             </thead>
                             <tbody id="hours-tbody">
@@ -240,13 +240,13 @@ const EmployeePortal = {
 
             const tr = document.createElement('tr');
             tr.innerHTML = `
-                <td><input type="date" class="date-input" value="${dateStr}" style="width: 100%;"></td>
-                <td><input type="time" class="time-in" value="${lastIn}" style="width: 100%;"></td>
-                <td><input type="time" class="time-out" value="${lastOut}" style="width: 100%;"></td>
-                <td style="text-align: center;"><input type="checkbox" class="is-double-day" style="width: 18px; height: 18px;"></td>
-                <td><input type="number" class="deduction-hours" value="0" step="0.5" style="width: 100%;"></td>
-                <td class="hours-cell" style="font-weight: 600;">0.00h</td>
-                <td>
+                <td class="col-date"><input type="date" class="date-input" value="${dateStr}" style="width: 100%;"></td>
+                <td class="col-time"><input type="time" class="time-in" value="${lastIn}" style="width: 100%;"></td>
+                <td class="col-time"><input type="time" class="time-out" value="${lastOut}" style="width: 100%;"></td>
+                <td class="col-double"><input type="checkbox" class="is-double-day" style="width: 18px; height: 18px;"></td>
+                <td class="col-num"><input type="number" class="deduction-hours" value="0" step="0.5" style="width: 100%;"></td>
+                <td class="col-hours hours-cell">0.00h</td>
+                <td class="col-action">
                     <button class="btn" onclick="this.closest('tr').remove(); EmployeePortal.updateTotal();" style="padding: 4px 8px; background: rgba(239,68,68,0.1); color: var(--danger);">
                         🗑️
                     </button>

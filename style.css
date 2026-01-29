@@ -273,8 +273,7 @@ header h2 {
 table {
     width: 100%;
     border-collapse: collapse;
-    min-width: 900px;
-    /* Asegurar que las columnas tengan espacio */
+    min-width: 600px;
 }
 
 td {
@@ -283,17 +282,52 @@ td {
 }
 
 th {
-    padding: 1rem;
+    padding: 0.75rem 0.5rem;
     color: var(--text-muted);
     font-weight: 600;
-    font-size: 0.875rem;
+    font-size: 0.85rem;
     border-bottom: 1px solid var(--border);
+    text-align: left;
 }
 
 td {
-    padding: 1.25rem 1rem;
+    padding: 0.75rem 0.5rem;
     border-bottom: 1px solid var(--border);
-    font-size: 0.9375rem;
+    font-size: 0.9rem;
+}
+
+/* Clases de ancho de columnas */
+.col-date {
+    width: 140px;
+}
+
+.col-time {
+    width: 100px;
+}
+
+.col-double {
+    width: 60px;
+    text-align: center;
+}
+
+.col-num {
+    width: 90px;
+}
+
+.col-hours {
+    width: 80px;
+    font-weight: 600;
+}
+
+.col-action {
+    width: 50px;
+    text-align: center;
+}
+
+@media (max-width: 768px) {
+    .table-container table {
+        min-width: 700px;
+    }
 }
 
 tr:last-child td {
@@ -752,8 +786,7 @@ dialog[open] {
     }
 
     .table-container table {
-        min-width: 1200px;
-        /* Forzar scroll horizontal en tablas muy densas para no romper layout */
+        min-width: 700px;
     }
 
     .stats-grid {
