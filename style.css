@@ -737,24 +737,23 @@ dialog[open] {
     }
 
     .stats-grid {
-        grid-template-columns: repeat(2, 1fr) !important;
-        gap: 0.5rem;
-        /* Espacio más pequeño para que quepan */
+        display: grid !important;
+        grid-template-columns: 1fr 1fr !important;
+        gap: 1rem !important;
+        margin-bottom: 2rem;
     }
 
     .stat-card {
-        padding: 0.8rem;
-        min-width: 0;
-        /* Permitir que se encojan según el grid */
+        padding: 1.25rem !important;
+        min-width: 0 !important;
     }
 
     .stat-card .value {
-        font-size: 1.25rem;
-        /* Ajustar tamaño de fuente para que no desborde */
+        font-size: 1.5rem !important;
     }
 
     .stat-card h3 {
-        font-size: 0.75rem;
+        font-size: 0.85rem !important;
     }
 
     .grid-2 {
@@ -804,11 +803,6 @@ dialog[open] {
 
     .table-container table {
         min-width: 700px;
-    }
-
-    .stats-grid {
-        grid-template-columns: repeat(2, 1fr) !important;
-        gap: 0.75rem;
     }
 
     /* Dashboard mobile scroll fix */

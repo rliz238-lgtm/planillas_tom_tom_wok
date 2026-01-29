@@ -836,7 +836,7 @@ const Views = {
         const lastWeekStats = getAggregateStats(lastWeekRange.start, lastWeekRange.end);
 
         return `
-            <div class="stats-grid" style="grid-template-columns: repeat(4, 1fr) !important;">
+            <div class="stats-grid">
                 <div class="stat-card">
                     <h3>Empleados Activos</h3>
                     <div class="value">${activeEmployees.length}</div>
