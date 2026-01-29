@@ -2131,7 +2131,7 @@ const Views = {
                                 hours: item.hours,
                                 deductionCCSS: 0,
                                 netAmount: item.amount,
-                                date: Storage.getLocalDate(), // Fecha de hoy como fecha de proceso del pago
+                                date: item.date, // Usar la fecha del periodo del Excel
                                 isImported: true,
                                 startDate: item.dateIni,
                                 endDate: item.dateFin,
